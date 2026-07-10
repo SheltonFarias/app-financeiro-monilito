@@ -26,7 +26,7 @@ const NAV = [
   { icon: "💼", label: "Investimentos",    key: 7 },
 ];
 
-/** Gera lista de meses para o ano atual + próximo ano, no formato "MêsANO" */
+/** Gera lista de meses para o ano atual (completo) + próximo ano, no formato "MêsANO" */
 const NOMES_MESES = [
   "Janeiro","Fevereiro","Marco","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
@@ -34,6 +34,7 @@ const NOMES_MESES = [
 function gerarMeses() {
   const anoAtual  = new Date().getFullYear();
   const anos = [anoAtual, anoAtual + 1];
+  // Inclui todos os 12 meses de cada ano (incluindo os passados do ano atual)
   return anos.flatMap(ano => NOMES_MESES.map(m => m + ano));
 }
 

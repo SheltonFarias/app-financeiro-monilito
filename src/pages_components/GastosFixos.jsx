@@ -9,6 +9,7 @@ import { useState, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { fmt, COLORS, fmtDate, isOverdue } from "../utils/format";
 import { updateStatus, deleteRow } from "../utils/apiService";
+import { deleteGastoFixoSerie } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 import StatusToggle from "../components/StatusToggle";
 
@@ -109,8 +110,38 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
 
   /* ─── Excluir da planilha ── */
   const handleDelete = async (item, idx) => {
-    if (!window.confirm(`Tem certeza que deseja excluir "${item.descricao}"?`)) return;
+    const isRecorrente = item.data_fim || item.template_id;
 
+    if (isRecorrente) {
+      // Pergunta ao usuário se quer excluir só este mês ou toda a série
+      const opcao = window.confirm(
+        `"¹${item.descricao}" é um gasto recorrente.\n\n` +
+        `Clique OK para excluir TODA A SÉRIE (todos os meses).\n` +
+        `Clique Cancelar para excluir SOMENTE este mês.`
+      );
+      setToggling(idx);
+      try {
+        if (opcao) {
+          // Excluir toda a série via endpoint /serie
+          const templateId = item.template_id ?? item.id;
+          await deleteGastoFixoSerie(templateId);
+          toast.success(`Série "${item.descricao}" excluída por completo.`);
+        } else {
+          // Excluir somente este mês
+          await deleteRow("gastos_fixos", { id: item.id });
+          toast.success(`"${item.descricao}" excluído somente deste mês.`);
+        }
+        refetch?.();
+      } catch (err) {
+        toast.error("Erro ao excluir: " + err.message);
+      } finally {
+        setToggling(null);
+      }
+      return;
+    }
+
+    // Gasto avulso — comportamento original
+    if (!window.confirm(`Tem certeza que deseja excluir "${item.descricao}"?`)) return;
     setToggling(idx);
     try {
       await deleteRow("gastos_fixos", { id: item.id });
@@ -217,6 +248,30 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                       <td><CatBadge name={g.categoria} /></td>
                       <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
                         {g.descricao}
+                        {g.mensal === 1 && (
+                          <span
+                            title="♾️ Cobrança mensal — aparece em todos os meses"
+                            style={{
+                              marginLeft: 6, fontSize: 9, color: "#fff",
+                              background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                              padding: "1px 5px", borderRadius: 3, fontWeight: 700, cursor: "default",
+                            }}
+                          >
+                            ♾️ MENSAL
+                          </span>
+                        )}
+                        {!g.mensal && g.data_fim && (
+                          <span
+                            title={`🔁 Recorrente até ${g.data_fim}`}
+                            style={{
+                              marginLeft: 6, fontSize: 9, color: "#fff",
+                              background: "#7c3aed", padding: "1px 5px",
+                              borderRadius: 3, fontWeight: 700, cursor: "default",
+                            }}
+                          >
+                            🔁 REC
+                          </span>
+                        )}
                         {vencido && (
                           <span style={{
                             marginLeft: 6, fontSize: 9, color: "#fff",

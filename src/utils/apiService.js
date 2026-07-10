@@ -174,8 +174,14 @@ export async function updateGastoFixoStatus(id, situacao) {
 
 /** DELETE /api/gastos-fixos/:id */
 export async function deleteGastoFixo(id) {
-  return apiFetch(`/api/gastos-fixos/${id}`, { method: "DELETE" });
+  return apiFetch(`/api/gastos-fixos/${id}`, { method: 'DELETE' });
 }
+
+/** DELETE /api/gastos-fixos/:id/serie — remove template + todas as cópias */
+export async function deleteGastoFixoSerie(id) {
+  return apiFetch(`/api/gastos-fixos/${id}/serie`, { method: 'DELETE' });
+}
+
 
 // ── CRUD: Gastos Variáveis ────────────────────────────────────────────────
 

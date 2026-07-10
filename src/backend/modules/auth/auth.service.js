@@ -5,7 +5,7 @@
  */
 const jwt = require('jsonwebtoken');
 const { AppError } = require('../../utils/AppError');
-const { AUTH_PASSWORD, JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
+const { AUTH_PASSWORD, AUTH_USER, JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
 
 const AuthService = {
   /**
@@ -20,12 +20,12 @@ const AuthService = {
     }
 
     const token = jwt.sign(
-      { authenticated: true },
+      { authenticated: true, username: AUTH_USER },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
 
-    return { token, expiresIn: JWT_EXPIRES_IN };
+    return { token, expiresIn: JWT_EXPIRES_IN, username: AUTH_USER };
   },
 };
 
