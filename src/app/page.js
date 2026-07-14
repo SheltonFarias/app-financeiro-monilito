@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import VisaoGeral from "../pages_components/VisaoGeral";
 import GastosFixos from "../pages_components/GastosFixos";
 import GastosVariaveis from "../pages_components/GastosVariaveis";
@@ -8,11 +8,12 @@ import Receitas from "../pages_components/Receitas";
 import Cartoes from "../pages_components/Cartoes";
 import Metas from "../pages_components/Metas";
 import Relatorios from "../pages_components/Relatorios";
+import Configuracoes from "../pages_components/Configuracoes";
 import Modal from "../components/Modal";
 import Login from "../components/Login";
 import { ToastProvider } from "../components/Toast";
 import { useSheetData } from "../hooks/useSheetData";
-import { getMesAtual } from "../utils/format";
+import { getMesAtual, MESES } from "../utils/format";
 import { useAuth } from "../hooks/useAuth";
 
 const NAV = [
@@ -20,26 +21,25 @@ const NAV = [
   { icon: "📌", label: "Gastos Fixos",     key: 1 },
   { icon: "🛒", label: "Gastos Variáveis", key: 2 },
   { icon: "💰", label: "Receitas",         key: 3 },
-  { icon: "💳", label: "Cartões",          key: 4 },
-  { icon: "🎯", label: "Metas",            key: 5 },
-  { icon: "📈", label: "Relatórios",       key: 6 },
-  { icon: "💼", label: "Investimentos",    key: 7 },
+  { icon: "🎯", label: "Metas",            key: 4 },
+  { icon: "📈", label: "Relatórios",       key: 5 },
+  { icon: "💼", label: "Investimentos",    key: 6 },
+  { icon: "⚙️", label: "Configurações",    key: 7 },
 ];
 
-/** Gera lista de meses para o ano atual (completo) + próximo ano, no formato "MêsANO" */
-const NOMES_MESES = [
-  "Janeiro","Fevereiro","Marco","Abril","Maio","Junho",
-  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
-];
-function gerarMeses() {
-  const anoAtual  = new Date().getFullYear();
+/** Gera lista de meses para o ano atual (completo) + próximo ano, no formato "MêsANO"
+ *  Executado como função pura — o ano é passado como argumento para evitar
+ *  mismatch de hidratação SSR/CSR (new Date() é chamado no useEffect, não no render).
+ */
+function gerarMeses(anoAtual) {
   const anos = [anoAtual, anoAtual + 1];
-  // Inclui todos os 12 meses de cada ano (incluindo os passados do ano atual)
-  return anos.flatMap(ano => NOMES_MESES.map(m => m + ano));
+  return anos.flatMap(ano => MESES.map(m => m + ano));
 }
 
 export default function App() {
-  const { isAuthenticated, login, logout } = useAuth();
+  const { isAuthenticated, isLoaded, login, logout } = useAuth();
+
+  if (!isLoaded) return null;
 
   if (!isAuthenticated) {
     return <Login onLogin={login} />;
@@ -55,12 +55,32 @@ export default function App() {
 function AppInner({ logout }) {
   const [tab,          setTab]          = useState(0);
   const [modal,        setModal]        = useState(null);
-  const [mesAtual,     setMesAtual]     = useState(getMesAtual());
+  // Inicializado como null para evitar mismatch SSR/CSR — resolvido no useEffect
+  const [mesAtual,     setMesAtual]     = useState(null);
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [anoAtual,     setAnoAtual]     = useState(null);
+
+  useEffect(() => {
+    const ano = new Date().getFullYear();
+    setAnoAtual(ano);
+    setMesAtual(getMesAtual());
+    // Abre a sidebar por padrão apenas se for desktop
+    if (window.innerWidth > 900) {
+      setSidebarOpen(true);
+    }
+  }, []);
+
+  const mesesDisponiveis = useMemo(
+    () => (anoAtual ? gerarMeses(anoAtual) : []),
+    [anoAtual]
+  );
 
   const { data, loading, error, refetch } = useSheetData(mesAtual);
 
-  const mesLabel = mesAtual.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2");
+  // Guard: mesAtual ainda não foi inicializado pelo useEffect
+  const mesLabel = mesAtual
+    ? mesAtual.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")
+    : "";
 
   const closeSidebar = () => setSidebarOpen(false);
 
@@ -68,6 +88,7 @@ function AppInner({ logout }) {
     <div className="shell">
       <Sidebar tab={tab} setTab={setTab}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
+        mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
       {sidebarOpen && <div className="sidebar-overlay" onClick={closeSidebar} />}
       <div className="main">
@@ -85,6 +106,7 @@ function AppInner({ logout }) {
     <div className="shell">
       <Sidebar tab={tab} setTab={setTab}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
+        mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
       {sidebarOpen && <div className="sidebar-overlay" onClick={closeSidebar} />}
       <div className="main">
@@ -105,17 +127,17 @@ function AppInner({ logout }) {
     <GastosFixos key="gf" data={data.gastosFixos} onAdd={() => setModal({ tipo: "Gasto Fixo" })} onEdit={(item) => setModal({ tipo: "Gasto Fixo", item })} refetch={refetch} />,
     <GastosVariaveis key="gv" data={data.gastosVariaveis} onAdd={() => setModal({ tipo: "Gasto Variável" })} onEdit={(item) => setModal({ tipo: "Gasto Variável", item })} refetch={refetch} />,
     <Receitas key="rc" data={data.receitas} onAdd={() => setModal({ tipo: "Receita" })} onEdit={(item) => setModal({ tipo: "Receita", item })} refetch={refetch} />,
-    <Cartoes key="cc" data={data.cartoes} onAdd={() => setModal({ tipo: "Cartão de Crédito" })} onEdit={(item) => setModal({ tipo: "Cartão de Crédito", item })} refetch={refetch} />,
     <Metas key="mt" data={data.metas} onAdd={() => setModal({ tipo: "Meta" })} onEdit={(item) => setModal({ tipo: "Meta", item })} refetch={refetch} />,
     <Relatorios key="rel" mesAtual={mesAtual} />,
     <Investimentos key="inv" data={data.investimentos} onAdd={() => setModal({ tipo: "Investimento" })} onEdit={(item) => setModal({ tipo: "Investimento", item })} refetch={refetch} />,
+    <Configuracoes key="cfg" />,
   ];
 
-
   return (
-    <div className="shell">
+    <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
       <Sidebar tab={tab} setTab={(t) => { setTab(t); closeSidebar(); }}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
+        mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
       {sidebarOpen && <div className="sidebar-overlay" onClick={closeSidebar} />}
       <div className="main">
@@ -134,7 +156,7 @@ function AppInner({ logout }) {
 }
 
 /* ─── Sidebar Component ── */
-function Sidebar({ tab, setTab, mesAtual, setMesAtual, isOpen, onClose }) {
+function Sidebar({ tab, setTab, mesAtual, setMesAtual, mesesDisponiveis, isOpen, onClose }) {
   return (
     <aside className={`sidebar${isOpen ? " sidebar--open" : ""}`}>
       {/* Logo */}
@@ -151,6 +173,7 @@ function Sidebar({ tab, setTab, mesAtual, setMesAtual, isOpen, onClose }) {
             key={key}
             className={`nav-item ${tab === key ? "nav-item--active" : ""}`}
             onClick={() => setTab(key)}
+            aria-current={tab === key ? "page" : undefined}
           >
             <span className="nav-item__icon">{icon}</span>
             {label}
@@ -160,20 +183,15 @@ function Sidebar({ tab, setTab, mesAtual, setMesAtual, isOpen, onClose }) {
 
       {/* Month selector in footer */}
       <div className="sidebar__section-label">Período</div>
-      <div style={{ padding: "4px 10px 8px" }}>
+      <div className="sidebar__month-wrap">
         <select
-          value={mesAtual}
+          className="sidebar__month-select"
+          value={mesAtual || ""}
           onChange={(e) => setMesAtual(e.target.value)}
-          style={{
-            width: "100%", background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px",
-            padding: "8px 10px", color: "var(--text-primary)",
-            fontFamily: "var(--font)", fontSize: "12px", fontWeight: 600,
-            cursor: "pointer", outline: "none",
-          }}
+          aria-label="Selecionar mês"
         >
-          {gerarMeses().map(m => (
-            <option key={m} value={m} style={{ background: "#1a2332" }}>
+          {mesesDisponiveis.map(m => (
+            <option key={m} value={m}>
               {m.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")}
             </option>
           ))}
@@ -182,10 +200,10 @@ function Sidebar({ tab, setTab, mesAtual, setMesAtual, isOpen, onClose }) {
 
       {/* Footer */}
       <div className="sidebar__footer">
-          <div className="status-dot">
-            <div className="status-dot__circle" />
-            Backend Local
-          </div>
+        <div className="status-dot">
+          <div className="status-dot__circle" />
+          Backend Local
+        </div>
       </div>
     </aside>
   );
@@ -209,29 +227,23 @@ function Topbar({ mesLabel, sidebarOpen, setSidebarOpen, logout }) {
         </button>
         <div className="topbar__title">
           Financeiro <span>2026</span>
-          <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 400, color: "var(--text-muted)" }}>
-            — {mesLabel}
-          </span>
+          {mesLabel && (
+            <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 400, color: "var(--text-muted)" }}>
+              — {mesLabel}
+            </span>
+          )}
         </div>
       </div>
       <div className="topbar__right">
         <div className="status-dot">
-            <div className="status-dot__circle" />
-            <span>API Conectada</span>
-          </div>
+          <div className="status-dot__circle" />
+          <span>API Conectada</span>
+        </div>
         <button
           onClick={logout}
           title="Sair da conta"
-          style={{
-            background: "rgba(244,100,95,0.12)",
-            border: "1px solid rgba(244,100,95,0.25)",
-            borderRadius: 8, padding: "5px 12px",
-            color: "#f4645f", fontSize: 12, fontWeight: 600,
-            cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-            transition: "background 0.2s, border-color 0.2s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(244,100,95,0.22)"; e.currentTarget.style.borderColor = "rgba(244,100,95,0.5)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(244,100,95,0.12)"; e.currentTarget.style.borderColor = "rgba(244,100,95,0.25)"; }}
+          aria-label="Sair da conta"
+          className="btn btn--red"
         >
           🚪 Sair
         </button>

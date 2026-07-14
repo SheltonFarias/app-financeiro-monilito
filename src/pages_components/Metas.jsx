@@ -16,7 +16,7 @@ export default function Metas({ data = [], onAdd, onEdit }) {
             
             return (
               <div key={m.id} style={{
-                background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                background: "var(--surface)", border: "1px solid var(--hairline)",
                 borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 12
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -29,7 +29,7 @@ export default function Metas({ data = [], onAdd, onEdit }) {
                   }}>⚙️</button>
                 </div>
                 
-                <div className="progress-track" style={{ height: 12, borderRadius: 6, background: "rgba(255,255,255,0.06)" }}>
+                <div className="progress-track" style={{ height: 12, borderRadius: 6, background: "var(--canvas-soft)" }}>
                   <div className="progress-fill" style={{ width: pctVal + "%", background: "var(--teal)", borderRadius: 6 }} />
                 </div>
                 

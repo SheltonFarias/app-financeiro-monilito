@@ -3,9 +3,11 @@
  * Substitui o comportamento do "loadData" do Apps Script.
  * Também retorna dados de todos os meses para o gráfico de evolução mensal.
  */
-const { GastosFixosRepository } = require('../gastos-fixos/gastosFixos.repository');
+const { GastosFixosService } = require('../gastos-fixos/gastosFixos.service');
 const { GastosVariaveisRepository } = require('../gastos-variaveis/gastosVariaveis.repository');
+const { ReceitasService } = require('../receitas/receitas.service');
 const { ReceitasRepository } = require('../receitas/receitas.repository');
+const { GastosFixosRepository } = require('../gastos-fixos/gastosFixos.repository');
 const { InvestimentosRepository } = require('../investimentos/investimentos.repository');
 const { OrcamentosRepository } = require('../orcamentos/orcamentos.repository');
 const { MetasRepository } = require('../metas/metas.repository');
@@ -64,9 +66,9 @@ const DashboardService = {
       }
     }
 
-    const gastosFixos     = GastosFixosRepository.findByMes(mes);
+    const gastosFixos     = GastosFixosService.listarPorMes(mes);
     const gastosVariaveis = GastosVariaveisRepository.findByMes(mes);
-    const receitas        = ReceitasRepository.findByMes(mes);
+    const receitas        = ReceitasService.listarPorMes(mes);
     const investimentos   = InvestimentosRepository.findAll();
     const orcamentos      = OrcamentosRepository.findByMes(mes);
     const metas           = MetasRepository.findAll();

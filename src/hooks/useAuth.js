@@ -3,10 +3,9 @@
  * Usa o backend REST local para login (POST /api/auth/login → JWT).
  * Substitui a autenticação anterior via Google Apps Script.
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { loginApi, clearToken, setToken } from "../utils/apiService";
-
-const SESSION_KEY = "fin2026_jwt";
+import { SESSION_KEY } from "../utils/constants";
 
 /** Verifica se há JWT válido na sessão */
 function getInitialAuth() {
@@ -21,7 +20,13 @@ function getInitialAuth() {
  * @returns {{ isAuthenticated: boolean, login: Function, logout: Function }}
  */
 export function useAuth() {
-  const [isAuthenticated, setIsAuthenticated] = useState(getInitialAuth);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsAuthenticated(getInitialAuth());
+    setIsLoaded(true);
+  }, []);
 
   /**
    * Autentica via API REST e salva o JWT.
@@ -42,5 +47,5 @@ export function useAuth() {
     setIsAuthenticated(false);
   }, []);
 
-  return { isAuthenticated, login, logout };
+  return { isAuthenticated, isLoaded, login, logout };
 }

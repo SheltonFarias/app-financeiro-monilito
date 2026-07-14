@@ -3,64 +3,71 @@
  * Salva diretamente no backend REST local via apiService.
  * Usa o sistema de toast global para feedback de sucesso/erro.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { addRow, editRow } from "../utils/apiService";
 import { useToast } from "./Toast";
+import { useConfig } from "../hooks/useConfig";
 
-const FIELD_DEFS = {
-  "Gasto Fixo": [
-    { key: "categoria",   label: "Categoria",       type: "select", options: ["Educação","Veiculo","Casa","Apartamento","Lazer","Outros","Saúde","Mãe"] },
-    { key: "descricao",   label: "Descrição",        type: "text",   placeholder: "Ex: Internet, Financiamento..." },
-    { key: "valor",       label: "Valor (R$)",        type: "number", placeholder: "0.00" },
-    { key: "vencimento",  label: "Vencimento",        type: "text",   placeholder: "Mensal ou data (2026-06-15)" },
-    { key: "cartao",      label: "Cartão / Pessoa",   type: "select", options: ["—","Cartão Inter","Cartão Nubank"] },
-    { key: "situacao",    label: "Situação",          type: "select", options: ["Pendente","Pago"] },
-  ],
-  "Gasto Variável": [
-    { key: "categoria",  label: "Categoria",         type: "select",  options: ["Casa","Alimentação","Transporte","Lazer","Saúde","Vestuário","Outros","Mãe"] },
-    { key: "descricao",  label: "Descrição",         type: "text",    placeholder: "Ex: Supermercado, iFood..." },
-    { key: "valor",      label: "Valor (R$)",         type: "number",  placeholder: "0.00" },
-    { key: "parcela",    label: "Última Parcela",     type: "text",    placeholder: "Data ou vazio" },
-    { key: "pagamento",  label: "Forma de Pagamento", type: "select",  options: ["Cartão Inter","Cartão Nubank","Débito","Pix"] },
-    { key: "qtd_parcelas",label:"Parcelas (Qtd)",     type: "number",  placeholder: "1" },
-    { key: "subcategoria",label: "Subcategoria",      type: "text",    placeholder: "Ex: Assinaturas" },
-    { key: "tags",       label: "Tags",               type: "text",    placeholder: "ex: #viagem, #trabalho" },
-    { key: "recorrente", label: "Recorrente?",        type: "select",  options: ["Não", "Sim"] },
-    { key: "situacao",   label: "Situação",           type: "select",  options: ["Pendente","Pago"] },
-  ],
-  "Receita": [
-    { key: "categoria",  label: "Categoria",  type: "select", options: ["Trabalho","Apartamento","Outros","Mãe"] },
-    { key: "descricao",  label: "Descrição",  type: "text",   placeholder: "Ex: Salário, Aluguel..." },
-    { key: "valor",      label: "Valor (R$)", type: "number", placeholder: "0.00" },
-    { key: "situacao",   label: "Situação",   type: "select", options: ["Pendente","Recebido"] },
-    { key: "cartao",     label: "Pessoa",     type: "select", options: ["—"] },
-  ],
-  "Investimento": [
-    { key: "ticker",     label: "Ticker / Nome",    type: "text",   placeholder: "Ex: MXRF11, PETR4..." },
-    { key: "tipo",       label: "Tipo",              type: "select", options: ["FII","Ação","ETF","Renda Fixa"] },
-    { key: "quantidade", label: "Quantidade",        type: "number", placeholder: "0" },
-    { key: "precoMedio", label: "Preço Médio (R$)",  type: "number", placeholder: "0.00" },
-    { key: "setor",      label: "Setor",             type: "text",   placeholder: "Ex: Papel, Logística..." },
-    { key: "dataCompra", label: "Data da Compra",    type: "date" },
-  ],
-  "Orçamento": [
-    { key: "categoria",  label: "Categoria", type: "select", options: ["Casa","Alimentação","Transporte","Lazer","Saúde","Vestuário","Outros","Mãe"] },
-    { key: "valor_limite", label: "Valor Limite (R$)", type: "number", placeholder: "0.00" },
-  ],
-  "Meta": [
-    { key: "titulo",     label: "Título",            type: "text",   placeholder: "Ex: Viagem Europa" },
-    { key: "descricao",  label: "Descrição",         type: "text",   placeholder: "Opcional" },
-    { key: "valor_alvo", label: "Valor Alvo (R$)",   type: "number", placeholder: "0.00" },
-    { key: "valor_atual",label: "Valor Atual (R$)",  type: "number", placeholder: "0.00" },
-    { key: "data_limite",label: "Data Limite",       type: "date" },
-  ],
-  "Cartão de Crédito": [
-    { key: "nome",           label: "Nome do Cartão", type: "text",   placeholder: "Ex: Nubank Ultravioleta" },
-    { key: "limite_total",   label: "Limite Total",   type: "number", placeholder: "0.00" },
-    { key: "dia_fechamento", label: "Dia Fechamento", type: "number", placeholder: "Ex: 25" },
-    { key: "dia_vencimento", label: "Dia Vencimento", type: "number", placeholder: "Ex: 5" },
-  ],
-};
+function getFieldDefs(config) {
+  const cReceitas = config?.categorias_receitas || ["Trabalho","Apartamento","Outros","Mãe"];
+  const cGastosFixos = config?.categorias_gastos_fixos || ["Educação","Veiculo","Casa","Apartamento","Lazer","Outros","Saúde","Mãe"];
+  const cGastosVar = config?.categorias_gastos_variaveis || ["Casa","Alimentação","Transporte","Lazer","Saúde","Vestuário","Outros","Mãe"];
+  const pagamentos = config?.formas_pagamento || ["Cartão Inter","Cartão Nubank","Débito","Pix"];
+
+  return {
+    "Gasto Fixo": [
+      { key: "categoria",   label: "Categoria",       type: "select", options: cGastosFixos },
+      { key: "descricao",   label: "Descrição",        type: "text",   placeholder: "Ex: Internet, Financiamento..." },
+      { key: "valor",       label: "Valor (R$)",        type: "number", placeholder: "0.00" },
+      { key: "vencimento",  label: "Vencimento",        type: "text",   placeholder: "Mensal ou data (2026-06-15)" },
+      { key: "cartao",      label: "Cartão / Pessoa",   type: "select", options: ["—", "Cartão Inter", "Cartão Nubank"] },
+      { key: "situacao",    label: "Situação",          type: "select", options: ["Pendente","Pago"] },
+    ],
+    "Gasto Variável": [
+      { key: "categoria",  label: "Categoria",         type: "select",  options: cGastosVar },
+      { key: "descricao",  label: "Descrição",         type: "text",    placeholder: "Ex: Supermercado, iFood..." },
+      { key: "valor",      label: "Valor (R$)",         type: "number",  placeholder: "0.00" },
+      { key: "pagamento",  label: "Forma de Pagamento", type: "select",  options: pagamentos },
+      { key: "qtd_parcelas",label:"Parcelas (Qtd)",     type: "number",  placeholder: "1" },
+      { key: "subcategoria",label: "Subcategoria",      type: "text",    placeholder: "Ex: Assinaturas" },
+      { key: "tags",       label: "Tags",               type: "text",    placeholder: "ex: #viagem, #trabalho" },
+      { key: "situacao",   label: "Situação",           type: "select",  options: ["Pendente","Pago"] },
+    ],
+    "Receita": [
+      { key: "categoria",  label: "Categoria",   type: "select", options: cReceitas },
+      { key: "descricao",  label: "Descrição",   type: "text",   placeholder: "Ex: Salário, Aluguel..." },
+      { key: "valor",      label: "Valor (R$)",   type: "number", placeholder: "0.00" },
+      { key: "situacao",   label: "Situação",     type: "select", options: ["Pendente","Recebido"] },
+      { key: "cartao",     label: "Pessoa",       type: "select", options: ["—"] },
+      { key: "recorrente", label: "Recorrente?",  type: "select", options: ["Não", "Sim"] },
+    ],
+    "Investimento": [
+      { key: "ticker",     label: "Ticker / Nome",    type: "text",   placeholder: "Ex: MXRF11, PETR4..." },
+      { key: "tipo",       label: "Tipo",              type: "select", options: ["FII","Ação","ETF","Renda Fixa"] },
+      { key: "quantidade", label: "Quantidade",        type: "number", placeholder: "0" },
+      { key: "precoMedio", label: "Preço Médio (R$)",  type: "number", placeholder: "0.00" },
+      { key: "setor",      label: "Setor",             type: "text",   placeholder: "Ex: Papel, Logística..." },
+      { key: "dataCompra", label: "Data da Compra",    type: "date" },
+    ],
+    "Orçamento": [
+      { key: "categoria",  label: "Categoria", type: "select", options: cGastosVar },
+      { key: "valor_limite", label: "Valor Limite (R$)", type: "number", placeholder: "0.00" },
+    ],
+    "Meta": [
+      { key: "titulo",     label: "Título",            type: "text",   placeholder: "Ex: Viagem Europa" },
+      { key: "descricao",  label: "Descrição",         type: "text",   placeholder: "Opcional" },
+      { key: "valor_alvo", label: "Valor Alvo (R$)",   type: "number", placeholder: "0.00" },
+      { key: "valor_atual",label: "Valor Atual (R$)",  type: "number", placeholder: "0.00" },
+      { key: "data_limite",label: "Data Limite",       type: "date" },
+    ],
+    "Cartão de Crédito": [
+      { key: "nome",           label: "Nome do Cartão", type: "text",   placeholder: "Ex: Nubank Ultravioleta" },
+      { key: "limite_total",   label: "Limite Total",   type: "number", placeholder: "0.00" },
+      { key: "dia_fechamento", label: "Dia Fechamento", type: "number", placeholder: "Ex: 25" },
+      { key: "dia_vencimento", label: "Dia Vencimento", type: "number", placeholder: "Ex: 5" },
+    ],
+  };
+}
 
 const ABA_MAP = {
   "Gasto Fixo":     "gastos_fixos",
@@ -88,8 +95,13 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
   const [tipoCobranca, setTipoCobranca] = useState(detectarTipoRecorrencia(initialData));
 
   const { toast } = useToast();
+  const { config } = useConfig();
 
-  const fields = FIELD_DEFS[tipo] || [];
+  // CORREÇÃO CRÍTICA: fieldDefs nunca estava sendo definido — getFieldDefs(config)
+  // precisa ser chamada e seu resultado armazenado.
+  const fieldDefs = useMemo(() => getFieldDefs(config), [config]);
+
+  const fields = fieldDefs[tipo] || [];
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
@@ -186,18 +198,18 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
         {/* ── Seção de Recorrência (só Gasto Fixo) ── */}
         {tipo === "Gasto Fixo" && (
           <div style={{
-            marginBottom: 14,
-            padding: "12px 14px",
+            marginBottom: 18,
+            padding: "16px",
             background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 10,
+            border: "1.5px solid rgba(255,255,255,0.09)",
+            borderRadius: 12,
           }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>
               🔁 Tipo de Cobrança
             </div>
 
             {/* Botões de seleção */}
-            <div style={{ display: "flex", gap: 8, marginBottom: tipoCobranca !== "avulso" ? 12 : 0 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: tipoCobranca !== "avulso" ? 14 : 0 }}>
               {[
                 { key: "avulso",   label: "📌 Avulso",       desc: "Só neste mês" },
                 { key: "mensal",   label: "♾️ Mensal",        desc: "Todos os meses" },
@@ -210,17 +222,17 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
                   title={opt.desc}
                   style={{
                     flex: 1,
-                    padding: "7px 6px",
-                    borderRadius: 8,
+                    padding: "10px 8px",
+                    borderRadius: 10,
                     border: tipoCobranca === opt.key
                       ? "2px solid var(--teal)"
-                      : "1px solid rgba(255,255,255,0.1)",
+                      : "1.5px solid rgba(255,255,255,0.1)",
                     background: tipoCobranca === opt.key
                       ? "rgba(45,212,191,0.12)"
                       : "rgba(255,255,255,0.04)",
-                    color: tipoCobranca === opt.key ? "var(--teal)" : "var(--text-secondary)",
-                    fontSize: 11,
-                    fontWeight: tipoCobranca === opt.key ? 700 : 400,
+                    color: tipoCobranca === opt.key ? "var(--teal)" : "rgba(255,255,255,0.5)",
+                    fontSize: 12,
+                    fontWeight: tipoCobranca === opt.key ? 700 : 500,
                     cursor: "pointer",
                     transition: "all 0.15s",
                     textAlign: "center",
@@ -228,7 +240,7 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
                   }}
                 >
                   <div>{opt.label}</div>
-                  <div style={{ fontSize: 9, opacity: 0.7, marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontSize: 11, opacity: 0.75, marginTop: 3 }}>{opt.desc}</div>
                 </button>
               ))}
             </div>
@@ -236,16 +248,15 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
             {/* Campo data_fim só aparece quando "ate_data" */}
             {tipoCobranca === "ate_data" && (
               <div>
-                <label className="modal__label" style={{ marginBottom: 4 }}>Último mês (data fim)</label>
+                <label className="modal__label" style={{ marginBottom: 6 }}>Último mês (data fim)</label>
                 <input
                   className="modal__input"
                   type="date"
                   value={form.data_fim || ""}
                   onChange={e => set("data_fim", e.target.value)}
-                  placeholder="Ex: 2026-12-31"
-                  style={{ marginBottom: 0 }}
+                  style={{ marginBottom: 6 }}
                 />
-                <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
                   Ex: para pós-graduação até Dez/2026, informe <strong>2026-12-31</strong>
                 </div>
               </div>
@@ -253,13 +264,13 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
 
             {/* Info de contexto */}
             {tipoCobranca === "mensal" && (
-              <div style={{ fontSize: 10, color: "var(--teal)", display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ fontSize: 12, color: "var(--teal)", display: "flex", alignItems: "center", gap: 6, background: "rgba(45,212,191,0.07)", borderRadius: 8, padding: "8px 10px" }}>
                 <span>♾️</span>
                 <span>Este gasto aparecerá automaticamente em <strong>todos os meses</strong>, sem data de encerramento.</span>
               </div>
             )}
             {tipoCobranca === "avulso" && (
-              <div style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 6 }}>
                 <span>📌</span>
                 <span>Registrado apenas no mês <strong style={{ color: "var(--teal)" }}>{mesAtual?.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")}</strong>.</span>
               </div>
@@ -270,10 +281,11 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
         {/* Mês vinculado automaticamente */}
         {tipo !== "Investimento" && mesAtual && tipo !== "Gasto Fixo" && (
           <div style={{
-            fontSize: 11, color: "var(--text-muted)",
+            fontSize: 13, color: "rgba(255,255,255,0.5)",
             background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: 6, padding: "6px 10px", marginBottom: 12,
+            border: "1.5px solid rgba(255,255,255,0.07)",
+            borderRadius: 10, padding: "9px 13px", marginBottom: 16,
+            display: "flex", alignItems: "center", gap: 6,
           }}>
             📅 Será salvo no mês: <strong style={{ color: "var(--teal)" }}>
               {mesAtual.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")}

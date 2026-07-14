@@ -13,7 +13,7 @@ const { sendSuccess } = require('../../utils/response');
  */
 const login = asyncHandler(async (req, res) => {
   const { senha } = req.body;
-  const data = AuthService.login(senha);
+  const data = await AuthService.login(senha);
   sendSuccess(res, data);
 });
 

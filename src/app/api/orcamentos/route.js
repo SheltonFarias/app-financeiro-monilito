@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { OrcamentosService } from '@/backend/modules/orcamentos/orcamentos.service';
+import { orcamentoSchema } from '@/backend/modules/orcamentos/orcamentos.schema';
 import { withAuth } from '@/backend/middlewares/next-auth';
 
 export const GET = withAuth(async (req) => {
@@ -17,8 +18,9 @@ export const GET = withAuth(async (req) => {
 export const POST = withAuth(async (req) => {
   try {
     const body = await req.json();
-    const data = OrcamentosService.criar(body);
-    return NextResponse.json({ success: true, data });
+    const dados = orcamentoSchema.parse(body);
+    const data = OrcamentosService.criar(dados);
+    return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });
   }

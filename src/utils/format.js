@@ -54,37 +54,38 @@ export const getMesAtual = () => {
   return meses[now.getMonth()] + now.getFullYear();
 };
 
-/** Paleta de cores por categoria */
+/** Paleta de cores por categoria (Notion Sticker Palette) */
 export const COLORS = {
-  // Categorias de gastos
-  Moradia: "#60a5fa",
-  Educação: "#818cf8",
-  Apartamento: "#60a5fa",
-  Casa: "#38bdf8",
-  Essenciais: "#4ade80",
-  Assinaturas: "#f59e0b",
-  Saúde: "#f87171",
-  Lazer: "#f59e0b",
-  Provisões: "#a78bfa",
-  Alimentação: "#4ade80",
-  Transporte: "#60a5fa",
-  Vestuário: "#f87171",
-  Veiculo: "#fb923c",
-  Outros: "#94a3b8",
-  Trabalho: "#4ade80",
+  Moradia: "#62aef0",      /* accent-sky */
+  Educação: "#d6b6f6",     /* accent-purple */
+  Apartamento: "#62aef0",  /* accent-sky */
+  Casa: "#62aef0",         /* accent-sky */
+  Essenciais: "#1aae39",   /* accent-green */
+  Assinaturas: "#dd5b00",  /* accent-orange */
+  Saúde: "#ff64c8",        /* accent-pink */
+  Lazer: "#dd5b00",        /* accent-orange */
+  Provisões: "#d6b6f6",    /* accent-purple */
+  Alimentação: "#1aae39",  /* accent-green */
+  Transporte: "#62aef0",   /* accent-sky */
+  Vestuário: "#ff64c8",    /* accent-pink */
+  Veiculo: "#dd5b00",      /* accent-orange */
+  Outros: "#2a9d99",       /* accent-teal */
+  Trabalho: "#1aae39",     /* accent-green */
+  Mãe: "#d6b6f6",          /* accent-purple */
+
   // Tipos de investimento
-  FII: "#4ade80",
-  Ação: "#60a5fa",
-  ETF: "#f59e0b",
-  "Renda Fixa": "#a78bfa",
+  FII: "#1aae39",          /* accent-green */
+  Ação: "#62aef0",         /* accent-sky */
+  ETF: "#dd5b00",          /* accent-orange */
+  "Renda Fixa": "#d6b6f6", /* accent-purple */
 };
 
-/** Cores por tipo de investimento */
+/** Cores por tipo de investimento (Notion Sticker Palette) */
 export const TIPO_COLOR = {
-  FII: "#4ade80",
-  Ação: "#60a5fa",
-  ETF: "#f59e0b",
-  "Renda Fixa": "#a78bfa",
+  FII: "#1aae39",          /* accent-green */
+  Ação: "#62aef0",         /* accent-sky */
+  ETF: "#dd5b00",          /* accent-orange */
+  "Renda Fixa": "#d6b6f6", /* accent-purple */
 };
 
 /** Lista de meses disponíveis */

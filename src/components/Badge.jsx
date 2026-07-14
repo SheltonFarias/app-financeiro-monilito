@@ -4,14 +4,14 @@
 import { COLORS } from "../utils/format";
 
 export default function Badge({ label, color }) {
-  const c = color || COLORS[label] || "#60a5fa";
+  const c = color || COLORS[label] || "#2a9d99"; // accent-teal
   return (
     <span
       className="badge"
       style={{
-        background: c + "22",
+        background: c + "1A",
         color: c,
-        border: `1px solid ${c}44`,
+        border: `1px solid ${c}33`,
       }}
     >
       {label}

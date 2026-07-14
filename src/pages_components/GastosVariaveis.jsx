@@ -271,10 +271,10 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
             <div className="sec-header"><span className="sec-header__title">Por Categoria</span></div>
             <ResponsiveContainer width="100%" height={Math.max(catData.length * 36, 120)}>
               <BarChart data={catData} layout="vertical">
-                <CartesianGrid stroke="rgba(255,255,255,0.04)" horizontal={false} />
+                <CartesianGrid stroke="var(--hairline)" horizontal={false} />
                 <XAxis type="number" tick={{ fill: "#4d6478", fontSize: 9 }} tickFormatter={v => "R$" + v} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fill: "#8fa3b8", fontSize: 10 }} width={80} axisLine={false} tickLine={false} />
-                <Tooltip formatter={v => fmt(v)} contentStyle={{ background: "#1a2332", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
+                <Tooltip formatter={v => fmt(v)} contentStyle={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: "var(--r-md)", fontSize: 12, boxShadow: "var(--shadow-1)" }} />
                 <Bar dataKey="value" radius={[0, 5, 5, 0]}>
                   {catData.map((e, i) => <Cell key={i} fill={COLORS[e.name] || `hsl(${i * 55},65%,58%)`} />)}
                 </Bar>
@@ -300,7 +300,6 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
 }
 
 function CatBadge({ name }) {
-  const colors = { Casa: "#22d3ee", Alimentação: "#34d399", Transporte: "#4f9cf9", Lazer: "#f59e0b", Saúde: "#f4645f", Vestuário: "#f87171", Outros: "#64748b" };
-  const c = colors[name] || "#64748b";
-  return <span className="badge" style={{ background: c + "22", color: c }}>{name}</span>;
+  const c = COLORS[name] || "#2a9d99"; // accent-teal
+  return <span className="badge" style={{ background: c + "1A", color: c, borderColor: c + "33" }}>{name}</span>;
 }

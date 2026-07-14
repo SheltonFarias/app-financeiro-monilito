@@ -58,8 +58,8 @@ const GastosVariaveisRepository = {
    */
   create(dados) {
     const stmt = db.prepare(`
-      INSERT INTO gastos_variaveis (categoria, descricao, valor, parcela, data_compra, pagamento, situacao, mes, subcategoria, recorrente, frequencia, tags)
-      VALUES (@categoria, @descricao, @valor, @parcela, @data_compra, @pagamento, @situacao, @mes, @subcategoria, @recorrente, @frequencia, @tags)
+      INSERT INTO gastos_variaveis (categoria, descricao, valor, data_compra, pagamento, situacao, mes, subcategoria, tags)
+      VALUES (@categoria, @descricao, @valor, @data_compra, @pagamento, @situacao, @mes, @subcategoria, @tags)
     `);
     const result = stmt.run(dados);
     return { id: result.lastInsertRowid };
@@ -75,9 +75,9 @@ const GastosVariaveisRepository = {
     const result = db.prepare(`
       UPDATE gastos_variaveis
       SET categoria = @categoria, descricao = @descricao, valor = @valor,
-          parcela = @parcela, data_compra = @data_compra, pagamento = @pagamento,
+          data_compra = @data_compra, pagamento = @pagamento,
           situacao = @situacao, mes = @mes, subcategoria = @subcategoria,
-          recorrente = @recorrente, frequencia = @frequencia, tags = @tags
+          tags = @tags
       WHERE id = @id
     `).run({ ...dados, id });
     return result.changes > 0;

@@ -139,7 +139,7 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
                 dataKey="value" paddingAngle={3}>
                 {tipoData.map((e, i) => <Cell key={i} fill={TIPO_COLOR[e.name] || `hsl(${i * 60},65%,58%)`} />)}
               </Pie>
-              <Tooltip formatter={v => fmt(v)} contentStyle={{ background: "#1a2332", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }} />
+              <Tooltip formatter={v => fmt(v)} contentStyle={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: "var(--r-md)", fontSize: 12, boxShadow: "var(--shadow-1)" }} />
             </PieChart>
           </ResponsiveContainer>
           {tipoData.map((t, i) => (

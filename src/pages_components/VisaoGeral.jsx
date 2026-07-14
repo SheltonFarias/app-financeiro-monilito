@@ -14,12 +14,13 @@ const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "#1a2332", border: "1px solid rgba(255,255,255,0.1)",
-      borderRadius: 8, padding: "10px 14px", fontSize: 12,
+      background: "var(--surface)", border: "1px solid var(--hairline)",
+      borderRadius: "var(--r-md)", padding: "10px 14px", fontSize: 12,
+      boxShadow: "var(--shadow-1)"
     }}>
-      <div style={{ color: "#8fa3b8", marginBottom: 6, fontWeight: 600 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, fontWeight: 600, marginBottom: 2 }}>
+      <div style={{ color: "var(--ink-secondary)", marginBottom: 6, fontWeight: 600 }}>{label}</div>
+      {payload.map((p) => (
+        <div key={p.dataKey || p.name} style={{ color: p.color, fontWeight: 600, marginBottom: 2 }}>
           {p.name}: {typeof p.value === "number" ? fmt(p.value) : p.value}
         </div>
       ))}
@@ -42,7 +43,7 @@ function DonutKPI({ value, total, label, color, sub }) {
             <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={54}
               startAngle={90} endAngle={-270} dataKey="value" strokeWidth={0}>
               <Cell fill={color} />
-              <Cell fill="rgba(255,255,255,0.05)" />
+              <Cell fill="var(--canvas-soft)" />
             </Pie>
           </PieChart>
         </ResponsiveContainer>
@@ -128,7 +129,7 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
       </div>
 
       {/* ── Linha 2: 2 KPIs secundários + 2 donuts ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
+      <div className="grid-kpi">
         <KPI color="green"  label="Contas Pagas"    value={fmt(pagas)}
           sub={`${gastosFixos.filter(g => g.situacao === "Pago").length + gastosVariaveis.filter(g => g.situacao === "Pago").length} itens`} />
         <KPI color="amber"  label="A Pagar"         value={fmt(pendente)}
@@ -167,29 +168,29 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
             <ComposedChart data={chartData} margin={{ left: 0, right: 0 }}>
               <defs>
                 <linearGradient id="gradReceita" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0.4} />
+                  <stop offset="0%" stopColor="var(--accent-teal)" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="var(--accent-teal)" stopOpacity={0.4} />
                 </linearGradient>
                 <linearGradient id="gradGasto" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f4645f" stopOpacity={0.8} />
-                  <stop offset="100%" stopColor="#f4645f" stopOpacity={0.4} />
+                  <stop offset="0%" stopColor="var(--red)" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="var(--red)" stopOpacity={0.4} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <XAxis dataKey="mes" tick={{ fill: "#4d6478", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#4d6478", fontSize: 10 }} axisLine={false} tickLine={false}
+              <CartesianGrid stroke="var(--hairline)" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fill: "var(--ink-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "var(--ink-muted)", fontSize: 10 }} axisLine={false} tickLine={false}
                 tickFormatter={v => "R$" + (v / 1000).toFixed(0) + "k"} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="receitas" name="Receitas" fill="url(#gradReceita)" radius={[4,4,0,0]} maxBarSize={40} />
               <Bar dataKey="gastos"   name="Gastos"   fill="url(#gradGasto)"   radius={[4,4,0,0]} maxBarSize={40} />
-              <Line type="monotone" dataKey="saldo" name="Saldo" stroke="#f59e0b"
-                strokeWidth={2} dot={{ r: 3, fill: "#f59e0b" }} />
+              <Line type="monotone" dataKey="saldo" name="Saldo" stroke="var(--accent-orange)"
+                strokeWidth={2} dot={{ r: 3, fill: "var(--accent-orange)" }} />
             </ComposedChart>
           </ResponsiveContainer>
           {/* Legenda */}
           <div className="flex gap-16" style={{ marginTop: 10 }}>
-            {[["#2dd4bf","Receitas"], ["#f4645f","Gastos"], ["#f59e0b","Saldo"]].map(([c, l]) => (
-              <div key={l} className="flex items-center gap-4" style={{ fontSize: 10, color: "var(--text-muted)" }}>
+            {[["var(--accent-teal)","Receitas"], ["var(--red)","Gastos"], ["var(--accent-orange)","Saldo"]].map(([c, l]) => (
+              <div key={l} className="flex items-center gap-4" style={{ fontSize: 10, color: "var(--ink-muted)" }}>
                 <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
                 {l}
               </div>
@@ -203,10 +204,8 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
             <span className="sec-header__title">Orçamentos & Categorias</span>
             <button
               onClick={onAddOrcamento}
-              style={{
-                background: "rgba(45, 212, 191, 0.1)", color: "#2dd4bf", border: "1px solid rgba(45, 212, 191, 0.2)",
-                borderRadius: 6, padding: "4px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer"
-              }}
+              className="btn btn--ghost"
+              style={{ fontSize: 12 }}
             >
               + Orçamento
             </button>
@@ -278,8 +277,8 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
                 </tr>
               </thead>
               <tbody>
-                {receitas.filter(r => r.valor > 0).map((r, i) => (
-                  <tr key={i}>
+                {receitas.filter(r => r.valor > 0).map((r) => (
+                  <tr key={r.id ?? r.descricao}>
                     <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
                       {r.descricao}
                     </td>
@@ -315,17 +314,17 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
-                {contasEmAberto.map((conta, idx) => (
-                  <div key={idx} style={{ 
+                {contasEmAberto.map((conta) => (
+                  <div key={conta.id ?? conta.descricao} style={{ 
                     display: "flex", justifyContent: "space-between", alignItems: "center",
-                    background: "rgba(255,255,255,0.02)", padding: "10px 12px", borderRadius: 8,
-                    borderLeft: "3px solid #f4645f"
+                    background: "var(--canvas-soft)", padding: "10px 12px", borderRadius: "var(--r-md)",
+                    borderLeft: "3px solid var(--red)"
                   }}>
                     <div style={{ display: "flex", flexDirection: "column" }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{conta.descricao}</span>
                       <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{conta.categoria || "Gasto"}</span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#f4645f", fontFamily: "var(--mono)" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--red)", fontFamily: "var(--mono)" }}>
                       {fmt(conta.valor)}
                     </span>
                   </div>

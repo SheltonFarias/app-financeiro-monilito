@@ -181,7 +181,10 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
                   return (
                     <tr key={i}>
                       <td><CatBadge name={r.categoria} /></td>
-                      <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>{r.descricao}</td>
+                      <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                        {r.recorrente === 1 && <span title="Receita Recorrente" style={{ marginRight: 6, fontSize: "0.9em" }}>🔁</span>}
+                        {r.descricao}
+                      </td>
                       <td className="val val--teal">{fmt(r.valor)}</td>
                       <td style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "flex-end" }}>
                         <StatusToggle
@@ -240,7 +243,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
               </Pie>
               <Tooltip
                 formatter={v => fmt(v)}
-                contentStyle={{ background: "#1a2332", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: "var(--r-md)", fontSize: 12, boxShadow: "var(--shadow-1)" }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -262,9 +265,6 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
 }
 
 function CatBadge({ name }) {
-  const colors = {
-    Trabalho: "#34d399", Apartamento: "#60a5fa", Outros: "#94a3b8", "Mãe": "#a78bfa",
-  };
-  const c = colors[name] || "#64748b";
-  return <span className="badge" style={{ background: c + "22", color: c }}>{name}</span>;
+  const c = COLORS[name] || "#2a9d99"; // accent-teal fallback
+  return <span className="badge" style={{ background: c + "1A", color: c, borderColor: c + "33" }}>{name}</span>;
 }

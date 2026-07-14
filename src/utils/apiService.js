@@ -8,8 +8,9 @@
  *   mais funções novas para operações com IDs
  */
 
+import { SESSION_KEY } from "./constants";
+
 const API_URL = "";
-const SESSION_KEY = "fin2026_jwt";
 
 // ── Helpers internos ──────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ export function clearToken() {
  * @param {RequestInit} [options] - Opções do fetch
  * @returns {Promise<any>} O campo `data` da resposta
  */
-async function apiFetch(path, options = {}) {
+export async function apiFetch(path, options = {}) {
   const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -75,13 +76,12 @@ async function apiFetch(path, options = {}) {
  */
 function normalizeInvestimento(inv) {
   if (!inv) return inv;
+  // Extrai as chaves snake_case e constrói um objeto limpo com camelCase
+  const { preco_medio, data_compra, ...rest } = inv;
   return {
-    ...inv,
-    precoMedio: inv.preco_medio ?? inv.precoMedio ?? 0,
-    dataCompra: inv.data_compra ?? inv.dataCompra ?? null,
-    // Mantém os campos originais para compatibilidade
-    preco_medio: undefined,
-    data_compra: undefined,
+    ...rest,
+    precoMedio: preco_medio ?? inv.precoMedio ?? 0,
+    dataCompra: data_compra ?? inv.dataCompra ?? null,
   };
 }
 
@@ -91,10 +91,10 @@ function normalizeInvestimento(inv) {
  */
 function normalizeGastoVariavel(gv) {
   if (!gv) return gv;
+  const { data_compra, ...rest } = gv;
   return {
-    ...gv,
-    dataCompra: gv.data_compra ?? gv.dataCompra ?? null,
-    data_compra: undefined,
+    ...rest,
+    dataCompra: data_compra ?? gv.dataCompra ?? null,
   };
 }
 
@@ -144,6 +144,19 @@ export async function fetchAllData(mes) {
     receitas:        dados.receitas        || [],
     investimentos:   (dados.investimentos  || []).map(normalizeInvestimento),
   };
+}
+
+// ── Configurações ─────────────────────────────────────────────────────────
+
+export async function fetchConfiguracoes() {
+  return await apiFetch("/api/configuracoes");
+}
+
+export async function updateConfiguracao(chave, valor) {
+  return await apiFetch("/api/configuracoes", {
+    method: "PUT",
+    body: JSON.stringify({ chave, valor }),
+  });
 }
 
 // ── CRUD: Gastos Fixos ────────────────────────────────────────────────────

@@ -8,8 +8,7 @@
 import { useState, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { fmt, COLORS, fmtDate, isOverdue } from "../utils/format";
-import { updateStatus, deleteRow } from "../utils/apiService";
-import { deleteGastoFixoSerie } from "../utils/apiService";
+import { updateStatus, deleteRow, deleteGastoFixoSerie } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 import StatusToggle from "../components/StatusToggle";
 
@@ -25,6 +24,12 @@ const SORT_OPTIONS = [
   { key: "valor",      label: "Valor" },
   { key: "categoria",  label: "Categoria" },
 ];
+
+/** SortArrow extraído para fora do componente — evita recriação a cada render */
+function SortArrow({ k, sortBy, sortDir }) {
+  if (sortBy !== k) return <span className="sort-arrow">↕</span>;
+  return <span className="sort-arrow sort-arrow--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
+}
 
 export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
   const [search,  setSearch]  = useState("");
@@ -88,15 +93,10 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
     else { setSortBy(key); setSortDir("asc"); }
   };
 
-  const SortArrow = ({ k }) => {
-    if (sortBy !== k) return <span className="sort-arrow">↕</span>;
-    return <span className="sort-arrow sort-arrow--active">{sortDir === "asc" ? "↑" : "↓"}</span>;
-  };
-
   /* ─── Alternar status na planilha ── */
-  const handleToggleStatus = async (item, idx) => {
+  const handleToggleStatus = async (item) => {
     const novoStatus = item.situacao === "Pago" ? "Pendente" : "Pago";
-    setToggling(idx);
+    setToggling(item.id);
     try {
       await updateStatus("gastos_fixos", { id: item.id }, novoStatus);
       toast.success(`"${item.descricao}" marcado como ${novoStatus}.`);
@@ -109,7 +109,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
   };
 
   /* ─── Excluir da planilha ── */
-  const handleDelete = async (item, idx) => {
+  const handleDelete = async (item) => {
     const isRecorrente = item.data_fim || item.template_id;
 
     if (isRecorrente) {
@@ -119,7 +119,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
         `Clique OK para excluir TODA A SÉRIE (todos os meses).\n` +
         `Clique Cancelar para excluir SOMENTE este mês.`
       );
-      setToggling(idx);
+      setToggling(item.id);
       try {
         if (opcao) {
           // Excluir toda a série via endpoint /serie
@@ -141,8 +141,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
     }
 
     // Gasto avulso — comportamento original
-    if (!window.confirm(`Tem certeza que deseja excluir "${item.descricao}"?`)) return;
-    setToggling(idx);
+    setToggling(item.id);
     try {
       await deleteRow("gastos_fixos", { id: item.id });
       toast.success(`"${item.descricao}" foi excluído com sucesso.`);
@@ -220,11 +219,11 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th className="sortable" onClick={() => handleSort("categoria")}>Categoria <SortArrow k="categoria" /></th>
+                  <th className="sortable" onClick={() => handleSort("categoria")}>Categoria <SortArrow k="categoria" sortBy={sortBy} sortDir={sortDir} /></th>
                   <th>Descrição</th>
-                  <th className="sortable" onClick={() => handleSort("valor")}>Valor <SortArrow k="valor" /></th>
-                  <th className="sortable" onClick={() => handleSort("vencimento")}>Vencimento <SortArrow k="vencimento" /></th>
-                  <th className="sortable" onClick={() => handleSort("cartao")}>Cartão / Pessoa <SortArrow k="cartao" /></th>
+                  <th className="sortable" onClick={() => handleSort("valor")}>Valor <SortArrow k="valor" sortBy={sortBy} sortDir={sortDir} /></th>
+                  <th className="sortable" onClick={() => handleSort("vencimento")}>Vencimento <SortArrow k="vencimento" sortBy={sortBy} sortDir={sortDir} /></th>
+                  <th className="sortable" onClick={() => handleSort("cartao")}>Cartão / Pessoa <SortArrow k="cartao" sortBy={sortBy} sortDir={sortDir} /></th>
                   <th>Situação</th>
                   <th>Ações</th>
                 </tr>
@@ -236,12 +235,12 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                       Nenhum resultado encontrado.
                     </td>
                   </tr>
-                ) : sorted.map((g, i) => {
+                ) : sorted.map((g) => {
                   const vencido = isOverdue(g.vencimento, g.situacao);
-                  const isToggling = toggling === i;
+                  const isToggling = toggling === g.id;
                   return (
                     <tr
-                      key={i}
+                      key={g.id ?? g.descricao}
                       className={vencido ? "row-overdue" : ""}
                       title={vencido ? "⚠ Esta conta está vencida!" : undefined}
                     >
@@ -294,7 +293,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                         <StatusToggle
                           status={g.situacao}
                           loading={isToggling}
-                          onChange={() => handleToggleStatus(g, i)}
+                          onChange={() => handleToggleStatus(g)}
                         />
                       </td>
                       <td>
@@ -302,6 +301,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                           <button
                             onClick={() => onEdit(g)}
                             title="Editar"
+                            aria-label={`Editar ${g.descricao}`}
                             style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 16, opacity: 0.7 }}
                             onMouseEnter={e => e.currentTarget.style.opacity = 1}
                             onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
@@ -310,8 +310,9 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                             ✏️
                           </button>
                           <button
-                            onClick={() => handleDelete(g, i)}
+                            onClick={() => handleDelete(g)}
                             title="Excluir"
+                            aria-label={`Excluir ${g.descricao}`}
                             style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 16, opacity: 0.7 }}
                             onMouseEnter={e => e.currentTarget.style.opacity = 1}
                             onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
@@ -347,13 +348,13 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
               </Pie>
               <Tooltip
                 formatter={v => fmt(v)}
-                contentStyle={{ background: "#1a2332", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: "var(--r-md)", fontSize: 12, boxShadow: "var(--shadow-1)" }}
               />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-col gap-8" style={{ marginTop: 8 }}>
             {catData.map((c, i) => (
-              <div key={i} className="legend-item">
+              <div key={c.name} className="legend-item">
                 <div className="legend-item__left">
                   <div className="legend-item__dot" style={{ background: COLORS[c.name] || `hsl(${i * 55},65%,58%)` }} />
                   <span className="legend-item__name">{c.name}</span>
@@ -369,11 +370,6 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
 }
 
 function CatBadge({ name }) {
-  const colors = {
-    Apartamento: "#4f9cf9", Casa: "#22d3ee", Educação: "#a78bfa",
-    Lazer: "#f59e0b", Veiculo: "#fb923c", Outros: "#64748b",
-    Saúde: "#f4645f", Trabalho: "#34d399",
-  };
-  const c = colors[name] || "#64748b";
-  return <span className="badge" style={{ background: c + "22", color: c }}>{name}</span>;
+  const c = COLORS[name] || "#2a9d99"; // accent-teal
+  return <span className="badge" style={{ background: c + "1A", color: c, borderColor: c + "33" }}>{name}</span>;
 }

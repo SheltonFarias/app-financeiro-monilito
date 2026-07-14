@@ -1,29 +1,38 @@
 /**
  * auth.service.js — Lógica de negócio de autenticação.
- * Valida a senha via variável de ambiente e gera o JWT.
+ * Compara a senha via bcryptjs (hash no .env) e gera o JWT com jose.
  * Não conhece req/res do Express.
  */
-const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { SignJWT } = require('jose');
 const { AppError } = require('../../utils/AppError');
-const { AUTH_PASSWORD, AUTH_USER, JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
+const { AUTH_PASSWORD_HASH, AUTH_USER, JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
+
+/** Converte a string do JWT_SECRET em Uint8Array para o jose */
+const secret = new TextEncoder().encode(JWT_SECRET);
 
 const AuthService = {
   /**
-   * Autentica o usuário com a senha configurada no .env.
+   * Autentica o usuário comparando a senha com o hash bcrypt armazenado no .env.
    * @param {string} senha - Senha enviada pelo frontend
-   * @returns {{ token: string, expiresIn: string }}
+   * @returns {Promise<{ token: string, expiresIn: string, username: string }>}
    * @throws {AppError} 401 se a senha estiver incorreta
    */
-  login(senha) {
-    if (!senha || senha !== AUTH_PASSWORD) {
+  async login(senha) {
+    if (!senha) {
+      throw new AppError('Senha não informada.', 401);
+    }
+
+    const senhaValida = await bcrypt.compare(senha, AUTH_PASSWORD_HASH);
+    if (!senhaValida) {
       throw new AppError('Senha incorreta.', 401);
     }
 
-    const token = jwt.sign(
-      { authenticated: true, username: AUTH_USER },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
+    const token = await new SignJWT({ authenticated: true, username: AUTH_USER })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(JWT_EXPIRES_IN)
+      .sign(secret);
 
     return { token, expiresIn: JWT_EXPIRES_IN, username: AUTH_USER };
   },
