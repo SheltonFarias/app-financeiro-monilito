@@ -259,49 +259,48 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
         </div>
       </div>
 
-      {/* ── Linha 4: Receitas + Demonstração de Resultados ── */}
-      <div className="grid-sidebar">
-        {/* Tabela de Receitas */}
-        <div className="card card--flat">
-          <div className="tbl-header">
-            <span className="tbl-header__title">Receitas do Mês</span>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{receitas.filter(r => r.valor > 0).length} fontes</span>
-          </div>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Descrição</th>
-                  <th>Valor</th>
-                  <th>Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receitas.filter(r => r.valor > 0).map((r) => (
-                  <tr key={r.id ?? r.descricao}>
-                    <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                      {r.descricao}
-                    </td>
-                    <td className="val val--teal">{fmt(r.valor)}</td>
-                    <td>
-                      <span className={`status-pill status-pill--${(r.situacao || "pendente").toLowerCase()}`}>
-                        <span className="status-pill__dot" />
-                        {r.situacao}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                <tr className="tbl__total">
-                  <td>TOTAL</td>
-                  <td className="val val--teal">{fmt(totalReceita)}</td>
-                  <td />
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      {/* ── Linha 4: Receitas do Mês — largura total ── */}
+      <div className="card card--flat">
+        <div className="tbl-header">
+          <span className="tbl-header__title">Receitas do Mês</span>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{receitas.filter(r => r.valor > 0).length} fontes</span>
         </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receitas.filter(r => r.valor > 0).map((r) => (
+                <tr key={r.id ?? r.descricao}>
+                  <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                    {r.descricao}
+                  </td>
+                  <td className="val val--teal">{fmt(r.valor)}</td>
+                  <td>
+                    <span className={`status-pill status-pill--${(r.situacao || "pendente").toLowerCase()}`}>
+                      <span className="status-pill__dot" />
+                      {r.situacao}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              <tr className="tbl__total">
+                <td>TOTAL</td>
+                <td className="val val--teal">{fmt(totalReceita)}</td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-        <div className="flex flex-col gap-16">
+      {/* ── Linha 5: Contas em Aberto + Demonstração de Resultados ── */}
+      <div className="grid-half">
           {/* Lembrete: Contas em Aberto */}
           <div className="card card--flat">
             <div className="sec-header" style={{ marginBottom: 12 }}>
@@ -359,8 +358,8 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
             </div>
           ))}
         </div>
-        </div>
       </div>
+
     </div>
   );
 }

@@ -135,7 +135,7 @@ function AppInner({ logout }) {
 
   return (
     <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
-      <Sidebar tab={tab} setTab={(t) => { setTab(t); closeSidebar(); }}
+      <Sidebar tab={tab} setTab={(t) => { setTab(t); if (window.innerWidth <= 900) closeSidebar(); }}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />

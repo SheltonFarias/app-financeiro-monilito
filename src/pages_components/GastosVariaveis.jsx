@@ -150,9 +150,8 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
         ))}
       </div>
 
-      {/* Tabela + gráfico */}
-      <div className="grid-sidebar">
-        <div className="card card--flat">
+      {/* Tabela — largura total */}
+      <div className="card card--flat">
           {/* Header */}
           <div className="tbl-header">
             <span className="tbl-header__title">Lançamentos do Mês</span>
@@ -221,7 +220,7 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
                       <td style={{ fontSize: 11, color: "var(--text-secondary)" }}>
                         {g.pagamento || "—"}
                       </td>
-                      <td style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "flex-end" }}>
+                      <td>
                         <StatusToggle
                           status={g.situacao}
                           loading={isToggling}
@@ -265,8 +264,8 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
           </div>
         </div>
 
-        {/* Gráficos */}
-        <div className="flex flex-col gap-16">
+        {/* Gráficos — abaixo da tabela em 2 colunas */}
+        <div className="grid-half">
           <div className="card">
             <div className="sec-header"><span className="sec-header__title">Por Categoria</span></div>
             <ResponsiveContainer width="100%" height={Math.max(catData.length * 36, 120)}>
@@ -294,7 +293,7 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
             ))}
           </div>
         </div>
-      </div>
+
     </div>
   );
 }

@@ -126,9 +126,9 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
         ))}
       </div>
 
-      {/* Tabela + Gráfico */}
-      <div className="grid-sidebar">
-        <div className="card card--flat">
+
+      {/* Tabela — largura total */}
+      <div className="card card--flat">
           {/* Header */}
           <div className="tbl-header">
             <span className="tbl-header__title">Receitas do Mês</span>
@@ -186,7 +186,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
                         {r.descricao}
                       </td>
                       <td className="val val--teal">{fmt(r.valor)}</td>
-                      <td style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "flex-end" }}>
+                      <td>
                         <StatusToggle
                           status={r.situacao}
                           loading={isToggling}
@@ -230,7 +230,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
           </div>
         </div>
 
-        {/* Gráfico por categoria */}
+        {/* Gráfico por categoria — abaixo da tabela, largura total */}
         <div className="card">
           <div className="sec-header"><span className="sec-header__title">Por Categoria</span></div>
           <ResponsiveContainer width="100%" height={180}>
@@ -259,7 +259,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
             ))}
           </div>
         </div>
-      </div>
+
     </div>
   );
 }

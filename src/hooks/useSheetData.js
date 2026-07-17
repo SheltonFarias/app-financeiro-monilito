@@ -37,13 +37,12 @@ export function useSheetData(mesAtual) {
   const [error,   setError]   = useState(null);
 
   const fetchData = useCallback(async () => {
+    // Aguarda o mesAtual ser inicializado pelo useEffect do componente pai
+    if (!mesAtual) return;
+
     setLoading(true);
     setError(null);
     try {
-      // O backend já filtra por mês no endpoint /api/dashboard?mes=...
-      // mas ainda precisamos buscar dados históricos para o gráfico de evolução.
-      // Por ora carregamos os dados do mês atual. Para o gráfico de evolução,
-      // o backend tem /api/dashboard/historico (usado no futuro).
       const data = await fetchAllData(mesAtual);
       setRawData(data);
     } catch (err) {
@@ -56,6 +55,7 @@ export function useSheetData(mesAtual) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
 
   // Os dados já vêm filtrados pelo backend — apenas computa resumo e evolução
   const data = rawData ? computeData(rawData, mesAtual) : null;

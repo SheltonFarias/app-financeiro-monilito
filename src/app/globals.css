@@ -99,7 +99,7 @@ body {
   color: var(--ink);
   min-height: 100vh;
   overflow-x: hidden;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
 }
 
@@ -138,7 +138,7 @@ body {
   padding: 24px 20px 20px;
 }
 .sidebar__logo-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -148,14 +148,14 @@ body {
   color: var(--ink-muted);
 }
 .sidebar__logo-sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-faint);
   margin-top: 4px;
   font-weight: 500;
 }
 
 .sidebar__section-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--ink-faint);
   padding: 20px 20px 6px;
@@ -178,7 +178,7 @@ body {
   border-radius: var(--r-sm);
   cursor: pointer;
   color: var(--ink-muted);
-  font-size: 15px; /* body-sm */
+  font-size: 15px;
   font-weight: 500;
   transition: all 0.1s ease;
   user-select: none;
@@ -193,7 +193,7 @@ body {
   color: var(--primary);
   font-weight: 600;
 }
-.nav-item__icon { font-size: 16px; flex-shrink: 0; width: 20px; text-align: center; }
+.nav-item__icon { font-size: 18px; flex-shrink: 0; width: 22px; text-align: center; }
 .nav-item__badge {
   margin-left: auto;
   background: var(--primary);
@@ -221,10 +221,10 @@ body {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
-  padding: 8px 10px;
+  padding: 9px 10px;
   color: var(--ink);
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   outline: none;
@@ -456,12 +456,12 @@ body {
 .kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-1); }
 
 .kpi__label {
-  font-size: 15px; /* body-sm */
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink-secondary);
 }
 .kpi__value {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -1px;
   color: var(--ink);
@@ -497,7 +497,7 @@ body {
   margin-bottom: var(--spacing-md);
 }
 .sec-header__title {
-  font-size: 20px; /* title */
+  font-size: 17px; /* title */
   font-weight: 600;
   letter-spacing: -0.125px;
   color: var(--ink);
@@ -514,21 +514,21 @@ body {
 .tbl {
   width: 100%;
   border-collapse: collapse;
-  font-size: 15px; /* body-sm */
+  font-size: 15px;
 }
 .tbl th {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 14px var(--spacing-md);
   text-align: left;
   background: var(--canvas-soft);
   color: var(--ink-secondary);
-  font-size: 12px; /* eyebrow */
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.125px;
   border-bottom: 1px solid var(--hairline);
   white-space: nowrap;
 }
 .tbl td {
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 14px var(--spacing-md);
   color: var(--ink);
   border-bottom: 1px solid var(--hairline);
 }
@@ -548,7 +548,7 @@ body {
   justify-content: space-between;
   align-items: center;
 }
-.tbl-header__title { font-size: 20px; font-weight: 600; color: var(--ink); letter-spacing: -0.125px; }
+.tbl-header__title { font-size: 19px; font-weight: 600; color: var(--ink); letter-spacing: -0.125px; }
 
 /* ═══════════════════════════════════════════════════════════════
    DEMONSTRAÇÃO DE RESULTADOS TABLE
@@ -703,10 +703,13 @@ body {
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
-  padding: 16px;
+  padding: 64px 16px 24px;
+  overflow-y: auto;
 }
 
 .modal {
@@ -716,14 +719,12 @@ body {
   padding: 32px 32px 28px;
   width: 540px;
   max-width: 100%;
-  max-height: 92vh;
-  overflow-y: auto;
+  margin: 0 auto;
   box-shadow:
     0 32px 64px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset;
   animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  flex-shrink: 0;
 }
 .modal::-webkit-scrollbar { width: 4px; }
 .modal::-webkit-scrollbar-track { background: transparent; }

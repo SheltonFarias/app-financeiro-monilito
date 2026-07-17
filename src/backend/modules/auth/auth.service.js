@@ -1,17 +1,25 @@
 /**
  * auth.service.js — Lógica de negócio de autenticação.
  * Compara a senha via bcryptjs (hash no .env) e gera o JWT com jose.
- * Não conhece req/res do Express.
+ * Usa ESModules para compatibilidade com o Next.js App Router (runtime nodejs).
  */
-const bcrypt = require('bcryptjs');
-const { SignJWT } = require('jose');
-const { AppError } = require('../../utils/AppError');
-const { AUTH_PASSWORD_HASH, AUTH_USER, JWT_SECRET, JWT_EXPIRES_IN } = require('../../config/env');
+import bcrypt from 'bcryptjs';
+import { SignJWT } from 'jose';
+
+/** Classe de erro customizada com statusCode HTTP */
+class AppError extends Error {
+  constructor(message, statusCode = 500) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = 'AppError';
+  }
+}
 
 /** Converte a string do JWT_SECRET em Uint8Array para o jose */
-const secret = new TextEncoder().encode(JWT_SECRET);
+const getSecret = () =>
+  new TextEncoder().encode(process.env.JWT_SECRET || '');
 
-const AuthService = {
+export const AuthService = {
   /**
    * Autentica o usuário comparando a senha com o hash bcrypt armazenado no .env.
    * @param {string} senha - Senha enviada pelo frontend
@@ -23,19 +31,25 @@ const AuthService = {
       throw new AppError('Senha não informada.', 401);
     }
 
-    const senhaValida = await bcrypt.compare(senha, AUTH_PASSWORD_HASH);
+    const hash = process.env.AUTH_PASSWORD_HASH;
+    if (!hash) {
+      throw new AppError('Configuração de autenticação ausente.', 500);
+    }
+
+    const senhaValida = await bcrypt.compare(senha, hash);
     if (!senhaValida) {
       throw new AppError('Senha incorreta.', 401);
     }
 
-    const token = await new SignJWT({ authenticated: true, username: AUTH_USER })
+    const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
+    const username  = process.env.AUTH_USER || 'admin';
+
+    const token = await new SignJWT({ authenticated: true, username })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime(JWT_EXPIRES_IN)
-      .sign(secret);
+      .setExpirationTime(expiresIn)
+      .sign(getSecret());
 
-    return { token, expiresIn: JWT_EXPIRES_IN, username: AUTH_USER };
+    return { token, expiresIn, username };
   },
 };
-
-module.exports = { AuthService };
