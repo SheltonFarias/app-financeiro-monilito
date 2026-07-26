@@ -26,12 +26,13 @@ const InvestimentosService = {
     }
 
     const dbDados = {
-      ticker:      dados.ticker,
-      tipo:        dados.tipo,
-      quantidade:  dados.quantidade,
-      preco_medio: dados.precoMedio,
-      setor:       dados.setor || null,
-      data_compra: dados.dataCompra || null,
+      ticker:           dados.ticker,
+      tipo:             dados.tipo,
+      quantidade:       dados.quantidade,
+      preco_medio:      dados.precoMedio,
+      setor:            dados.setor || null,
+      data_compra:      dados.dataCompra || null,
+      rentabilidade_cdi: dados.rentabilidadeCdi ?? null,
     };
 
     const { id } = InvestimentosRepository.create(dbDados);
@@ -56,12 +57,13 @@ const InvestimentosService = {
     }
 
     const dbDados = {
-      ticker:      dados.ticker,
-      tipo:        dados.tipo,
-      quantidade:  dados.quantidade,
-      preco_medio: dados.precoMedio,
-      setor:       dados.setor || null,
-      data_compra: dados.dataCompra || null,
+      ticker:           dados.ticker,
+      tipo:             dados.tipo,
+      quantidade:       dados.quantidade,
+      preco_medio:      dados.precoMedio,
+      setor:            dados.setor || null,
+      data_compra:      dados.dataCompra || null,
+      rentabilidade_cdi: dados.rentabilidadeCdi ?? null,
     };
 
     InvestimentosRepository.update(id, dbDados);

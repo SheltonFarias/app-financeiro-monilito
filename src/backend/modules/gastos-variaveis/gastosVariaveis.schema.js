@@ -17,8 +17,6 @@ const gastoVariavelSchema = z.object({
   pagamento:   z.enum(PAGAMENTOS, { message: `Pagamento deve ser um de: ${PAGAMENTOS.join(', ')}` }),
   situacao:    z.enum(SITUACOES).optional().default('Pendente'),
   mes:         z.string().regex(/^[A-Za-zÀ-ú]+\d{4}$/, 'Mês deve estar no formato "Junho2026"'),
-  subcategoria: z.string().optional().nullable().default(null),
-  tags:         z.string().optional().nullable().default(null),
   qtd_parcelas: z.number().int().min(1).optional().default(1),
 });
 

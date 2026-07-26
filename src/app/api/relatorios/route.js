@@ -4,24 +4,40 @@ import { RelatoriosService } from '@/backend/modules/relatorios/relatorios.servi
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const mes = searchParams.get('mes');
+    const mes  = searchParams.get('mes');
     const tipo = searchParams.get('tipo');
-
-    if (!mes) {
-      return NextResponse.json({ error: 'Parâmetro mes é obrigatório' }, { status: 400 });
-    }
+    const mes1 = searchParams.get('mes1');
+    const mes2 = searchParams.get('mes2');
 
     if (tipo === 'projecao') {
-      const projecao = RelatoriosService.gerarProjecao(mes);
+      if (!mes) return NextResponse.json({ error: 'Parâmetro mes é obrigatório' }, { status: 400 });
+      const projecao = RelatoriosService.gerarProjecao(mes, 11); // 12 meses total
       return NextResponse.json(projecao);
+
     } else if (tipo === 'categoria') {
+      if (!mes) return NextResponse.json({ error: 'Parâmetro mes é obrigatório' }, { status: 400 });
       const categorias = RelatoriosService.agruparPorCategoria(mes);
       return NextResponse.json(categorias);
+
+    } else if (tipo === 'historico') {
+      const historico = RelatoriosService.historicoConsolidado();
+      return NextResponse.json(historico);
+
+    } else if (tipo === 'comparacao') {
+      if (!mes1 || !mes2) {
+        return NextResponse.json({ error: 'Parâmetros mes1 e mes2 são obrigatórios' }, { status: 400 });
+      }
+      const comparacao = RelatoriosService.compararMeses(mes1, mes2);
+      return NextResponse.json(comparacao);
+
     } else {
-      // Retorna os dois se não especificar
-      const projecao = RelatoriosService.gerarProjecao(mes);
+      // Sem tipo: retorna projecao + categorias + historico juntos
+      if (!mes) return NextResponse.json({ error: 'Parâmetro mes é obrigatório' }, { status: 400 });
+
+      const projecao   = RelatoriosService.gerarProjecao(mes, 11);
       const categorias = RelatoriosService.agruparPorCategoria(mes);
-      return NextResponse.json({ projecao, categorias });
+      const historico  = RelatoriosService.historicoConsolidado();
+      return NextResponse.json({ projecao, categorias, historico });
     }
 
   } catch (error) {

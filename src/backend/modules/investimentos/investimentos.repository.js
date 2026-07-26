@@ -12,6 +12,7 @@ const { db } = require('../../config/database');
  * @property {number} preco_medio
  * @property {string|null} setor
  * @property {string|null} data_compra
+ * @property {number|null} rentabilidade_cdi
  * @property {string} created_at
  * @property {string} updated_at
  */
@@ -56,8 +57,8 @@ const InvestimentosRepository = {
    */
   create(dados) {
     const stmt = db.prepare(`
-      INSERT INTO investimentos (ticker, tipo, quantidade, preco_medio, setor, data_compra)
-      VALUES (@ticker, @tipo, @quantidade, @preco_medio, @setor, @data_compra)
+      INSERT INTO investimentos (ticker, tipo, quantidade, preco_medio, setor, data_compra, rentabilidade_cdi)
+      VALUES (@ticker, @tipo, @quantidade, @preco_medio, @setor, @data_compra, @rentabilidade_cdi)
     `);
     const result = stmt.run(dados);
     return { id: result.lastInsertRowid };
@@ -73,7 +74,8 @@ const InvestimentosRepository = {
     const result = db.prepare(`
       UPDATE investimentos
       SET ticker = @ticker, tipo = @tipo, quantidade = @quantidade,
-          preco_medio = @preco_medio, setor = @setor, data_compra = @data_compra
+          preco_medio = @preco_medio, setor = @setor, data_compra = @data_compra,
+          rentabilidade_cdi = @rentabilidade_cdi
       WHERE id = @id
     `).run({ ...dados, id });
     return result.changes > 0;

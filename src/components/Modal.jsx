@@ -16,41 +16,38 @@ function getFieldDefs(config) {
 
   return {
     "Gasto Fixo": [
-      { key: "categoria",   label: "Categoria",       type: "select", options: cGastosFixos },
-      { key: "descricao",   label: "Descrição",        type: "text",   placeholder: "Ex: Internet, Financiamento..." },
-      { key: "valor",       label: "Valor (R$)",        type: "number", placeholder: "0.00" },
-      { key: "vencimento",  label: "Vencimento",        type: "text",   placeholder: "Mensal ou data (2026-06-15)" },
-      { key: "cartao",      label: "Cartão / Pessoa",   type: "select", options: ["—", "Cartão Inter", "Cartão Nubank"] },
-      { key: "situacao",    label: "Situação",          type: "select", options: ["Pendente","Pago"] },
+      { key: "categoria",  label: "Categoria",         type: "select", options: cGastosFixos },
+      { key: "descricao",  label: "Descrição",          type: "text",   placeholder: "Ex: Internet, Financiamento..." },
+      { key: "valor",      label: "Valor (R$)",          type: "number", placeholder: "0.00" },
+      { key: "vencimento", label: "Dia do Vencimento",   type: "number", placeholder: "Ex: 10 (dia do mês)" },
+      { key: "cartao",     label: "Forma de Pagamento",  type: "select", options: ["—", "Cartão Inter", "Cartão Nubank"] },
+      { key: "situacao",   label: "Situação",            type: "select", options: ["Pendente","Pago"] },
     ],
     "Gasto Variável": [
-      { key: "categoria",  label: "Categoria",         type: "select",  options: cGastosVar },
-      { key: "descricao",  label: "Descrição",         type: "text",    placeholder: "Ex: Supermercado, iFood..." },
-      { key: "valor",      label: "Valor (R$)",         type: "number",  placeholder: "0.00" },
-      { key: "pagamento",  label: "Forma de Pagamento", type: "select",  options: pagamentos },
-      { key: "qtd_parcelas",label:"Parcelas (Qtd)",     type: "number",  placeholder: "1" },
-      { key: "subcategoria",label: "Subcategoria",      type: "text",    placeholder: "Ex: Assinaturas" },
-      { key: "tags",       label: "Tags",               type: "text",    placeholder: "ex: #viagem, #trabalho" },
-      { key: "situacao",   label: "Situação",           type: "select",  options: ["Pendente","Pago"] },
+      { key: "categoria",   label: "Categoria",         type: "select",  options: cGastosVar },
+      { key: "descricao",   label: "Descrição",         type: "text",    placeholder: "Ex: Supermercado, iFood..." },
+      { key: "valor",       label: "Valor (R$)",         type: "number",  placeholder: "0.00" },
+      { key: "pagamento",   label: "Forma de Pagamento", type: "select",  options: pagamentos },
+      { key: "qtd_parcelas",label: "Parcelas (Qtd)",     type: "number",  placeholder: "1" },
+      { key: "situacao",    label: "Situação",           type: "select",  options: ["Pendente","Pago"] },
     ],
     "Receita": [
       { key: "categoria",  label: "Categoria",   type: "select", options: cReceitas },
       { key: "descricao",  label: "Descrição",   type: "text",   placeholder: "Ex: Salário, Aluguel..." },
       { key: "valor",      label: "Valor (R$)",   type: "number", placeholder: "0.00" },
       { key: "situacao",   label: "Situação",     type: "select", options: ["Pendente","Recebido"] },
-      { key: "cartao",     label: "Pessoa",       type: "select", options: ["—"] },
-      { key: "recorrente", label: "Recorrente?",  type: "select", options: ["Não", "Sim"] },
     ],
     "Investimento": [
-      { key: "ticker",     label: "Ticker / Nome",    type: "text",   placeholder: "Ex: MXRF11, PETR4..." },
-      { key: "tipo",       label: "Tipo",              type: "select", options: ["FII","Ação","ETF","Renda Fixa"] },
-      { key: "quantidade", label: "Quantidade",        type: "number", placeholder: "0" },
-      { key: "precoMedio", label: "Preço Médio (R$)",  type: "number", placeholder: "0.00" },
-      { key: "setor",      label: "Setor",             type: "text",   placeholder: "Ex: Papel, Logística..." },
-      { key: "dataCompra", label: "Data da Compra",    type: "date" },
+      { key: "ticker",          label: "Ticker / Nome",          type: "text",   placeholder: "Ex: MXRF11, PETR4..." },
+      { key: "tipo",            label: "Tipo",                    type: "select", options: ["FII","Ação","ETF","Renda Fixa"] },
+      { key: "quantidade",      label: "Quantidade",              type: "number", placeholder: "0" },
+      { key: "precoMedio",      label: "Preço Médio (R$)",        type: "number", placeholder: "0.00" },
+      { key: "setor",           label: "Setor",                   type: "text",   placeholder: "Ex: Papel, Logística..." },
+      { key: "dataCompra",      label: "Data da Compra",          type: "date" },
+      { key: "rentabilidadeCdi", label: "Rentabilidade (% do CDI)", type: "number", placeholder: "Ex: 110 (para 110% do CDI)", condicional: "Renda Fixa" },
     ],
     "Orçamento": [
-      { key: "categoria",  label: "Categoria", type: "select", options: cGastosVar },
+      { key: "categoria",    label: "Categoria",         type: "select", options: cGastosVar },
       { key: "valor_limite", label: "Valor Limite (R$)", type: "number", placeholder: "0.00" },
     ],
     "Meta": [
@@ -88,17 +85,32 @@ function detectarTipoRecorrencia(data) {
 }
 
 export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) {
-  const [form,   setForm]   = useState(initialData || {});
+  // Para data_fim exibida no formato DD/MM/AAAA, converte ISO → BR ao abrir
+  const toDisplayDate = (iso) => {
+    if (!iso) return "";
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return iso;
+  };
+
+  const prepareInitial = (data) => {
+    if (!data) return {};
+    const copy = { ...data };
+    if (copy.data_fim) copy.data_fim = toDisplayDate(copy.data_fim);
+    return copy;
+  };
+
+  const [form,   setForm]   = useState(prepareInitial(initialData));
   const [saving, setSaving] = useState(false);
 
-  // Tipo de cobrança só para Gasto Fixo
-  const [tipoCobranca, setTipoCobranca] = useState(detectarTipoRecorrencia(initialData));
+  // Tipo de cobrança para Gasto Fixo e Receita
+  const [tipoCobranca, setTipoCobranca] = useState(
+    (tipo === "Gasto Fixo" || tipo === "Receita") ? detectarTipoRecorrencia(initialData) : "avulso"
+  );
 
   const { toast } = useToast();
   const { config } = useConfig();
 
-  // CORREÇÃO CRÍTICA: fieldDefs nunca estava sendo definido — getFieldDefs(config)
-  // precisa ser chamada e seu resultado armazenado.
   const fieldDefs = useMemo(() => getFieldDefs(config), [config]);
 
   const fields = fieldDefs[tipo] || [];
@@ -112,8 +124,10 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     if (processed.valor)        processed.valor        = parseFloat(processed.valor)        || 0;
     if (processed.valor_limite) processed.valor_limite = parseFloat(processed.valor_limite) || 0;
     if (processed.quantidade)   processed.quantidade   = parseInt(processed.quantidade)     || 0;
-    if (processed.precoMedio)   processed.precoMedio   = parseFloat(processed.precoMedio)   || 0;
-    if (processed.qtd_parcelas) processed.qtd_parcelas = parseInt(processed.qtd_parcelas)   || 1;
+    if (processed.precoMedio)      processed.precoMedio      = parseFloat(processed.precoMedio)      || 0;
+    if (processed.qtd_parcelas)    processed.qtd_parcelas    = parseInt(processed.qtd_parcelas)       || 1;
+    if (processed.rentabilidadeCdi !== undefined && processed.rentabilidadeCdi !== null && processed.rentabilidadeCdi !== '')
+      processed.rentabilidadeCdi = parseFloat(processed.rentabilidadeCdi) || null;
 
     // Meta / Cartao Numeric Fields
     if (processed.valor_alvo)     processed.valor_alvo     = parseFloat(processed.valor_alvo)     || 0;
@@ -124,19 +138,28 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
 
     if (processed.recorrente) processed.recorrente = (processed.recorrente === "Sim" || processed.recorrente === 1) ? 1 : 0;
 
-    // Lógica de recorrência para Gasto Fixo
-    if (tipo === "Gasto Fixo") {
+    // Lógica de recorrência para Gasto Fixo e Receita
+    if (tipo === "Gasto Fixo" || tipo === "Receita") {
+      // Converte data_fim de DD/MM/AAAA → AAAA-MM-DD para o backend
+      if (tipoCobranca === "ate_data" && processed.data_fim) {
+        const m = processed.data_fim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (m) processed.data_fim = `${m[3]}-${m[2]}-${m[1]}`;
+      }
+
       if (tipoCobranca === "mensal") {
         processed.mensal      = 1;
+        processed.recorrente  = 1; // compatibilidade legado (receitas)
         processed.data_fim    = null;
         processed.data_inicio = processed.data_inicio || null;
       } else if (tipoCobranca === "ate_data") {
         processed.mensal      = 0;
+        processed.recorrente  = 0;
         processed.data_inicio = processed.data_inicio || null;
         processed.data_fim    = processed.data_fim    || null;
       } else {
         // avulso
         processed.mensal      = 0;
+        processed.recorrente  = 0;
         processed.data_inicio = null;
         processed.data_fim    = null;
       }
@@ -146,6 +169,7 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     if (tipo !== "Investimento" && tipo !== "Cartão de Crédito" && tipo !== "Meta" && mesAtual) {
       processed.mes = mesAtual;
     }
+
 
     try {
       if (initialData) {
@@ -168,118 +192,74 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
       <div className="modal">
         <h3 className="modal__title">{initialData ? "✎ Editar" : "+ Adicionar"} {tipo}</h3>
 
-        {fields.map(field => (
-          <div className="modal__field" key={field.key}>
-            <label className="modal__label">{field.label}</label>
-            {field.type === "select" ? (
-              <select
-                className="modal__select"
-                value={form[field.key] || ""}
-                onChange={e => set(field.key, e.target.value)}
-              >
-                <option value="">Selecione...</option>
-                {field.options.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="modal__input"
-                type={field.type === "number" ? "text" : field.type}
-                inputMode={field.type === "number" ? "decimal" : undefined}
-                value={form[field.key] || ""}
-                onChange={e => set(field.key, e.target.value)}
-                placeholder={field.placeholder || ""}
-              />
-            )}
-          </div>
-        ))}
+        {fields.map(field => {
+          // Campo condicional: só renderiza quando form.tipo corresponde ao valor esperado
+          const isCondicional = !!field.condicional;
+          const condVisible   = !isCondicional || form.tipo === field.condicional;
 
-        {/* ── Seção de Recorrência (só Gasto Fixo) ── */}
-        {tipo === "Gasto Fixo" && (
-          <div style={{
-            marginBottom: 18,
-            padding: "16px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1.5px solid rgba(255,255,255,0.09)",
-            borderRadius: 12,
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              🔁 Tipo de Cobrança
+          return (
+            <div
+              key={field.key}
+              className="modal__field"
+              style={isCondicional ? {
+                maxHeight:   condVisible ? '120px' : '0',
+                opacity:     condVisible ? 1 : 0,
+                overflow:    'hidden',
+                marginBottom: condVisible ? undefined : 0,
+                paddingBottom: condVisible ? undefined : 0,
+                transition:  'max-height 0.3s ease, opacity 0.25s ease',
+                pointerEvents: condVisible ? 'auto' : 'none',
+              } : undefined}
+            >
+              {condVisible && (
+                <>
+                  <label className="modal__label">{field.label}</label>
+                  {isCondicional && (
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
+                      💡 Taxa contratada em % do CDI — ex: <strong>110</strong> para 110% do CDI
+                    </div>
+                  )}
+                  {field.type === "select" ? (
+                    <select
+                      className="modal__select"
+                      value={form[field.key] || ""}
+                      onChange={e => set(field.key, e.target.value)}
+                    >
+                      <option value="">Selecione...</option>
+                      {field.options.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="modal__input"
+                      type={field.type === "number" ? "text" : field.type}
+                      inputMode={field.type === "number" ? "decimal" : undefined}
+                      value={form[field.key] || ""}
+                      onChange={e => set(field.key, e.target.value)}
+                      placeholder={field.placeholder || ""}
+                    />
+                  )}
+                </>
+              )}
             </div>
+          );
+        })}
 
-            {/* Botões de seleção */}
-            <div style={{ display: "flex", gap: 8, marginBottom: tipoCobranca !== "avulso" ? 14 : 0 }}>
-              {[
-                { key: "avulso",   label: "📌 Avulso",       desc: "Só neste mês" },
-                { key: "mensal",   label: "♾️ Mensal",        desc: "Todos os meses" },
-                { key: "ate_data", label: "📅 Até uma data",  desc: "Escolher mês fim" },
-              ].map(opt => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setTipoCobranca(opt.key)}
-                  title={opt.desc}
-                  style={{
-                    flex: 1,
-                    padding: "10px 8px",
-                    borderRadius: 10,
-                    border: tipoCobranca === opt.key
-                      ? "2px solid var(--teal)"
-                      : "1.5px solid rgba(255,255,255,0.1)",
-                    background: tipoCobranca === opt.key
-                      ? "rgba(45,212,191,0.12)"
-                      : "rgba(255,255,255,0.04)",
-                    color: tipoCobranca === opt.key ? "var(--teal)" : "rgba(255,255,255,0.5)",
-                    fontSize: 12,
-                    fontWeight: tipoCobranca === opt.key ? 700 : 500,
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                    textAlign: "center",
-                    lineHeight: 1.3,
-                  }}
-                >
-                  <div>{opt.label}</div>
-                  <div style={{ fontSize: 11, opacity: 0.75, marginTop: 3 }}>{opt.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Campo data_fim só aparece quando "ate_data" */}
-            {tipoCobranca === "ate_data" && (
-              <div>
-                <label className="modal__label" style={{ marginBottom: 6 }}>Último mês (data fim)</label>
-                <input
-                  className="modal__input"
-                  type="date"
-                  value={form.data_fim || ""}
-                  onChange={e => set("data_fim", e.target.value)}
-                  style={{ marginBottom: 6 }}
-                />
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-                  Ex: para pós-graduação até Dez/2026, informe <strong>2026-12-31</strong>
-                </div>
-              </div>
-            )}
-
-            {/* Info de contexto */}
-            {tipoCobranca === "mensal" && (
-              <div style={{ fontSize: 12, color: "var(--teal)", display: "flex", alignItems: "center", gap: 6, background: "rgba(45,212,191,0.07)", borderRadius: 8, padding: "8px 10px" }}>
-                <span>♾️</span>
-                <span>Este gasto aparecerá automaticamente em <strong>todos os meses</strong>, sem data de encerramento.</span>
-              </div>
-            )}
-            {tipoCobranca === "avulso" && (
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span>📌</span>
-                <span>Registrado apenas no mês <strong style={{ color: "var(--teal)" }}>{mesAtual?.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")}</strong>.</span>
-              </div>
-            )}
-          </div>
+        {/* ── Seção de Recorrência (Gasto Fixo e Receita) ── */}
+        {(tipo === "Gasto Fixo" || tipo === "Receita") && (
+          <BlocoRecorrencia
+            tipoCobranca={tipoCobranca}
+            setTipoCobranca={setTipoCobranca}
+            dataFim={form.data_fim || ""}
+            onChangeDataFim={v => set("data_fim", v)}
+            mesAtual={mesAtual}
+            labelTipo={tipo === "Receita" ? "receita" : "gasto"}
+          />
         )}
 
         {/* Mês vinculado automaticamente */}
-        {tipo !== "Investimento" && mesAtual && tipo !== "Gasto Fixo" && (
+        {tipo !== "Investimento" && mesAtual && tipo !== "Gasto Fixo" && tipo !== "Receita" && (
           <div style={{
             fontSize: 13, color: "rgba(255,255,255,0.5)",
             background: "rgba(255,255,255,0.03)",
@@ -302,6 +282,95 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Bloco de recorrência reutilizável — exibido para Gasto Fixo e Receita.
+ */
+function BlocoRecorrencia({ tipoCobranca, setTipoCobranca, dataFim, onChangeDataFim, mesAtual, labelTipo }) {
+  return (
+    <div style={{
+      marginBottom: 18,
+      padding: "16px",
+      background: "rgba(255,255,255,0.03)",
+      border: "1.5px solid rgba(255,255,255,0.09)",
+      borderRadius: 12,
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        🔁 Tipo de Recorrência
+      </div>
+
+      {/* Botões de seleção */}
+      <div style={{ display: "flex", gap: 8, marginBottom: tipoCobranca !== "avulso" ? 14 : 0 }}>
+        {[
+          { key: "avulso",   label: "📌 Avulso",       desc: "Só neste mês" },
+          { key: "mensal",   label: "♾️ Mensal",        desc: "Todos os meses" },
+          { key: "ate_data", label: "📅 Até uma data",  desc: "Escolher mês fim" },
+        ].map(opt => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => setTipoCobranca(opt.key)}
+            title={opt.desc}
+            style={{
+              flex: 1,
+              padding: "10px 8px",
+              borderRadius: 10,
+              border: tipoCobranca === opt.key
+                ? "2px solid var(--teal)"
+                : "1.5px solid rgba(255,255,255,0.1)",
+              background: tipoCobranca === opt.key
+                ? "rgba(45,212,191,0.12)"
+                : "rgba(255,255,255,0.04)",
+              color: tipoCobranca === opt.key ? "var(--teal)" : "rgba(255,255,255,0.5)",
+              fontSize: 12,
+              fontWeight: tipoCobranca === opt.key ? 700 : 500,
+              cursor: "pointer",
+              transition: "all 0.15s",
+              textAlign: "center",
+              lineHeight: 1.3,
+            }}
+          >
+            <div>{opt.label}</div>
+            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 3 }}>{opt.desc}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Campo data_fim só aparece quando "ate_data" */}
+      {tipoCobranca === "ate_data" && (
+        <div>
+          <label className="modal__label" style={{ marginBottom: 6 }}>Último mês (data fim)</label>
+          <input
+            className="modal__input"
+            type="text"
+            inputMode="numeric"
+            value={dataFim}
+            onChange={e => onChangeDataFim(e.target.value)}
+            placeholder="DD/MM/AAAA"
+            style={{ marginBottom: 6 }}
+          />
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+            Ex: para encerrar em Dez/2026, informe <strong>31/12/2026</strong>
+          </div>
+        </div>
+      )}
+
+      {/* Info de contexto */}
+      {tipoCobranca === "mensal" && (
+        <div style={{ fontSize: 12, color: "var(--teal)", display: "flex", alignItems: "center", gap: 6, background: "rgba(45,212,191,0.07)", borderRadius: 8, padding: "8px 10px" }}>
+          <span>♾️</span>
+          <span>Esta {labelTipo} aparecerá automaticamente em <strong>todos os meses</strong>, sem data de encerramento.</span>
+        </div>
+      )}
+      {tipoCobranca === "avulso" && (
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", display: "flex", alignItems: "center", gap: 6 }}>
+          <span>📌</span>
+          <span>Registrado apenas no mês <strong style={{ color: "var(--teal)" }}>{mesAtual?.replace(/([A-Za-zÀ-ú]+)(\d+)/, "$1 $2")}</strong>.</span>
+        </div>
+      )}
     </div>
   );
 }

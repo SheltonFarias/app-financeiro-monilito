@@ -7,10 +7,29 @@
  */
 import { useState, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { fmt, COLORS, fmtDate, isOverdue } from "../utils/format";
+import { fmt, COLORS } from "../utils/format";
 import { updateStatus, deleteRow, deleteGastoFixoSerie } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 import StatusToggle from "../components/StatusToggle";
+
+/**
+ * Verifica se um gasto fixo com vencimento numérico (dia do mês) está vencido.
+ * Considera vencido se o dia já passou no mês atual e a situação é Pendente.
+ */
+function isDayOverdue(vencimento, situacao) {
+  if (situacao === "Pago") return false;
+  const dia = parseInt(vencimento, 10);
+  if (isNaN(dia) || dia <= 0) return false;
+  const hoje = new Date();
+  return dia < hoje.getDate();
+}
+
+/** Exibe o dia do vencimento de forma legível */
+function fmtVencimento(vencimento) {
+  const dia = parseInt(vencimento, 10);
+  if (isNaN(dia) || dia <= 0) return vencimento || "—";
+  return `Dia ${dia}`;
+}
 
 const FILTROS = [
   { key: "todos",    label: "Todos",    color: "" },
@@ -52,7 +71,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
         filtro === "todos"    ? true :
         filtro === "pendente" ? g.situacao === "Pendente" :
         filtro === "pago"     ? g.situacao === "Pago" :
-        filtro === "vencidos" ? isOverdue(g.vencimento, g.situacao) :
+        filtro === "vencidos" ? isDayOverdue(g.vencimento, g.situacao) :
         true;
 
       return matchSearch && matchFiltro;
@@ -63,8 +82,8 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
       // Vencidos sempre no topo (independente da ordenação)
-      const aVencido = isOverdue(a.vencimento, a.situacao);
-      const bVencido = isOverdue(b.vencimento, b.situacao);
+      const aVencido = isDayOverdue(a.vencimento, a.situacao);
+      const bVencido = isDayOverdue(b.vencimento, b.situacao);
       if (aVencido !== bVencido) return aVencido ? -1 : 1;
 
       // Ordenação pelo campo escolhido
@@ -75,10 +94,9 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
         valA = Number(valA);
         valB = Number(valB);
       } else if (sortBy === "vencimento") {
-        // Datas válidas primeiro
-        const dA = new Date(valA);
-        const dB = new Date(valB);
-        if (!isNaN(dA) && !isNaN(dB)) { valA = dA; valB = dB; }
+        // Ordena numericamente pelo dia
+        valA = parseInt(valA, 10) || 0;
+        valB = parseInt(valB, 10) || 0;
       }
 
       if (valA < valB) return sortDir === "asc" ? -1 : 1;
@@ -158,7 +176,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
   const totalPago  = data.filter(g => g.situacao === "Pago").reduce((s, g) => s + g.valor, 0);
   const totalPend  = total - totalPago;
   const qtdPend    = data.filter(g => g.situacao === "Pendente").length;
-  const qtdVencido = data.filter(g => isOverdue(g.vencimento, g.situacao)).length;
+  const qtdVencido = data.filter(g => isDayOverdue(g.vencimento, g.situacao)).length;
 
   const catData = Object.entries(
     data.reduce((acc, g) => { acc[g.categoria] = (acc[g.categoria] || 0) + g.valor; return acc; }, {})
@@ -223,7 +241,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                   <th>Descrição</th>
                   <th className="sortable" onClick={() => handleSort("valor")}>Valor <SortArrow k="valor" sortBy={sortBy} sortDir={sortDir} /></th>
                   <th className="sortable" onClick={() => handleSort("vencimento")}>Vencimento <SortArrow k="vencimento" sortBy={sortBy} sortDir={sortDir} /></th>
-                  <th className="sortable" onClick={() => handleSort("cartao")}>Cartão / Pessoa <SortArrow k="cartao" sortBy={sortBy} sortDir={sortDir} /></th>
+                  <th className="sortable" onClick={() => handleSort("cartao")}>Forma de Pagamento <SortArrow k="cartao" sortBy={sortBy} sortDir={sortDir} /></th>
                   <th>Situação</th>
                   <th>Ações</th>
                 </tr>
@@ -236,7 +254,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                     </td>
                   </tr>
                 ) : sorted.map((g) => {
-                  const vencido = isOverdue(g.vencimento, g.situacao);
+                  const vencido = isDayOverdue(g.vencimento, g.situacao);
                   const isToggling = toggling === g.id;
                   return (
                     <tr
@@ -284,7 +302,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                         color: vencido ? "var(--red)" : "var(--text-muted)",
                         fontSize: 11, fontWeight: vencido ? 700 : 400,
                       }}>
-                        {fmtDate(g.vencimento)}
+                        {fmtVencimento(g.vencimento)}
                       </td>
                       <td style={{ color: "var(--text-secondary)", fontSize: 11 }}>
                         {g.cartao || "—"}

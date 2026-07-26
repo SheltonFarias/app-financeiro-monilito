@@ -62,6 +62,8 @@ const GastosVariaveisService = {
       };
       delete dbDados.dataCompra;
       delete dbDados.qtd_parcelas;
+      delete dbDados.subcategoria;
+      delete dbDados.tags;
 
       const { id } = GastosVariaveisRepository.create(dbDados);
       if (i === 0) primeiroId = id;
@@ -84,6 +86,9 @@ const GastosVariaveisService = {
       data_compra: dados.dataCompra || null,
     };
     delete dbDados.dataCompra;
+    delete dbDados.qtd_parcelas;
+    delete dbDados.subcategoria;
+    delete dbDados.tags;
 
     GastosVariaveisRepository.update(id, dbDados);
     return GastosVariaveisRepository.findById(id);

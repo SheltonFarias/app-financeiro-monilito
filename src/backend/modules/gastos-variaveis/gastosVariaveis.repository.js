@@ -14,6 +14,7 @@ const { db } = require('../../config/database');
  * @property {string} pagamento
  * @property {string} situacao
  * @property {string} mes
+ * @property {number} recorrente - 1 = recorrente (propaga para meses seguintes)
  * @property {string} created_at
  * @property {string} updated_at
  */
@@ -58,10 +59,14 @@ const GastosVariaveisRepository = {
    */
   create(dados) {
     const stmt = db.prepare(`
-      INSERT INTO gastos_variaveis (categoria, descricao, valor, data_compra, pagamento, situacao, mes, subcategoria, tags)
-      VALUES (@categoria, @descricao, @valor, @data_compra, @pagamento, @situacao, @mes, @subcategoria, @tags)
+      INSERT INTO gastos_variaveis (categoria, descricao, valor, data_compra, pagamento, situacao, mes, recorrente)
+      VALUES (@categoria, @descricao, @valor, @data_compra, @pagamento, @situacao, @mes, @recorrente)
     `);
-    const result = stmt.run(dados);
+    const result = stmt.run({
+      ...dados,
+      data_compra: dados.data_compra ?? null,
+      recorrente:  dados.recorrente  ?? 0,
+    });
     return { id: result.lastInsertRowid };
   },
 
@@ -76,8 +81,7 @@ const GastosVariaveisRepository = {
       UPDATE gastos_variaveis
       SET categoria = @categoria, descricao = @descricao, valor = @valor,
           data_compra = @data_compra, pagamento = @pagamento,
-          situacao = @situacao, mes = @mes, subcategoria = @subcategoria,
-          tags = @tags
+          situacao = @situacao, mes = @mes
       WHERE id = @id
     `).run({ ...dados, id });
     return result.changes > 0;

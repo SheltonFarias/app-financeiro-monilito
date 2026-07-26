@@ -27,12 +27,13 @@ const NAV = [
   { icon: "⚙️", label: "Configurações",    key: 7 },
 ];
 
-/** Gera lista de meses para o ano atual (completo) + próximo ano, no formato "MêsANO"
- *  Executado como função pura — o ano é passado como argumento para evitar
- *  mismatch de hidratação SSR/CSR (new Date() é chamado no useEffect, não no render).
+/** Gera lista de meses disponíveis.
+ *  Regra: exibe apenas o ano atual.
+ *  Exceção: se o mês atual for Dezembro, também exibe todo o próximo ano.
  */
-function gerarMeses(anoAtual) {
-  const anos = [anoAtual, anoAtual + 1];
+function gerarMeses(anoAtual, mesAtual) {
+  const isDecembro = mesAtual?.startsWith("Dezembro");
+  const anos = isDecembro ? [anoAtual, anoAtual + 1] : [anoAtual];
   return anos.flatMap(ano => MESES.map(m => m + ano));
 }
 
@@ -71,8 +72,8 @@ function AppInner({ logout }) {
   }, []);
 
   const mesesDisponiveis = useMemo(
-    () => (anoAtual ? gerarMeses(anoAtual) : []),
-    [anoAtual]
+    () => (anoAtual ? gerarMeses(anoAtual, mesAtual) : []),
+    [anoAtual, mesAtual]
   );
 
   const { data, loading, error, refetch } = useSheetData(mesAtual);
@@ -127,7 +128,7 @@ function AppInner({ logout }) {
     <GastosFixos key="gf" data={data.gastosFixos} onAdd={() => setModal({ tipo: "Gasto Fixo" })} onEdit={(item) => setModal({ tipo: "Gasto Fixo", item })} refetch={refetch} />,
     <GastosVariaveis key="gv" data={data.gastosVariaveis} onAdd={() => setModal({ tipo: "Gasto Variável" })} onEdit={(item) => setModal({ tipo: "Gasto Variável", item })} refetch={refetch} />,
     <Receitas key="rc" data={data.receitas} onAdd={() => setModal({ tipo: "Receita" })} onEdit={(item) => setModal({ tipo: "Receita", item })} refetch={refetch} />,
-    <Metas key="mt" data={data.metas} onAdd={() => setModal({ tipo: "Meta" })} onEdit={(item) => setModal({ tipo: "Meta", item })} refetch={refetch} />,
+    <Metas key="mt" data={data.metas} onAdd={() => setModal({ tipo: "Meta" })} onEdit={(item) => setModal({ tipo: "Meta", item })} refetch={refetch} mesAtual={mesAtual} />,
     <Relatorios key="rel" mesAtual={mesAtual} />,
     <Investimentos key="inv" data={data.investimentos} onAdd={() => setModal({ tipo: "Investimento" })} onEdit={(item) => setModal({ tipo: "Investimento", item })} refetch={refetch} />,
     <Configuracoes key="cfg" />,

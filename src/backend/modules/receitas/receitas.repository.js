@@ -12,7 +12,11 @@ const { db } = require('../../config/database');
  * @property {string} situacao
  * @property {string|null} cartao
  * @property {string} mes
- * @property {number} recorrente
+ * @property {number} recorrente      - legado (compatibilidade)
+ * @property {number} mensal          - 1 = aparece em todos os meses (sem data_fim)
+ * @property {string|null} data_inicio - Início da vigência (YYYY-MM-DD) ou null
+ * @property {string|null} data_fim    - Fim da vigência (YYYY-MM-DD) ou null
+ * @property {number|null} template_id - ID do template se for cópia auto-gerada, ou null
  * @property {string} created_at
  * @property {string} updated_at
  */
@@ -51,42 +55,41 @@ const ReceitasRepository = {
   },
 
   /**
-   * Busca receitas recorrentes de um mês de origem que ainda NÃO existem no mês destino.
-   * (Depreciado/Mantido para compatibilidade, o service agora usa findAllRecorrentes)
-   */
-  findRecorrentesParaPropagar(mesOrigem, mesDestino) {
-    return db.prepare(`
-      SELECT r.*
-      FROM receitas r
-      WHERE r.mes = ?
-        AND r.recorrente = 1
-        AND NOT EXISTS (
-          SELECT 1 FROM receitas d
-          WHERE d.mes = ?
-            AND d.descricao = r.descricao
-            AND d.categoria = r.categoria
-            AND d.recorrente = 1
-        )
-    `).all(mesOrigem, mesDestino);
-  },
-
-  /**
-   * Retorna TODAS as receitas marcadas como recorrentes no banco.
-   * Usado para mapear o histórico e preencher lacunas de meses pulados.
+   * Busca templates de receitas recorrentes ativos em um determinado mês.
+   * Espelho de GastosFixosRepository.findTemplatesAtivos.
+   *
+   * @param {string} primeiroDiaMes - "YYYY-MM-01"
+   * @param {string} ultimoDiaMes   - "YYYY-MM-DD" (último dia do mês)
+   * @param {string} mes            - "Julho2026" (para checar se cópia já existe)
    * @returns {Receita[]}
    */
-  findAllRecorrentes() {
-    return db.prepare('SELECT * FROM receitas WHERE recorrente = 1').all();
+  findTemplatesAtivos(primeiroDiaMes, ultimoDiaMes, mes) {
+    return db.prepare(`
+      SELECT * FROM receitas
+      WHERE template_id IS NULL
+        AND (
+          mensal = 1
+          OR (data_fim IS NOT NULL AND data_fim >= ?)
+        )
+        AND (data_inicio IS NULL OR data_inicio <= ?)
+        AND id NOT IN (
+          SELECT template_id FROM receitas
+          WHERE template_id IS NOT NULL
+            AND mes = ?
+        )
+      ORDER BY id ASC
+    `).all(primeiroDiaMes, ultimoDiaMes, mes);
   },
 
   /**
-   * Verifica se já existe uma receita recorrente exatamente igual num determinado mês.
-   * Evita duplicidade ao propagar lacunas.
+   * Verifica se já existe uma receita exatamente igual num determinado mês.
+   * Evita duplicidade ao propagar.
    */
   existeIgual(mes, categoria, descricao, cartao) {
     const row = db.prepare(`
       SELECT 1 FROM receitas
-      WHERE mes = ? AND categoria = ? AND descricao = ? AND cartao = ? AND recorrente = 1
+      WHERE mes = ? AND categoria = ? AND descricao = ? AND cartao = ?
+        AND (recorrente = 1 OR mensal = 1 OR data_fim IS NOT NULL)
       LIMIT 1
     `).get(mes, categoria, descricao, cartao);
     return !!row;
@@ -99,10 +102,17 @@ const ReceitasRepository = {
    */
   create(dados) {
     const stmt = db.prepare(`
-      INSERT INTO receitas (categoria, descricao, valor, situacao, cartao, mes, recorrente)
-      VALUES (@categoria, @descricao, @valor, @situacao, @cartao, @mes, @recorrente)
+      INSERT INTO receitas (categoria, descricao, valor, situacao, cartao, mes, recorrente, mensal, data_inicio, data_fim, template_id)
+      VALUES (@categoria, @descricao, @valor, @situacao, @cartao, @mes, @recorrente, @mensal, @data_inicio, @data_fim, @template_id)
     `);
-    const result = stmt.run(dados);
+    const result = stmt.run({
+      ...dados,
+      recorrente:  dados.recorrente  ?? 0,
+      mensal:      dados.mensal      ?? 0,
+      data_inicio: dados.data_inicio ?? null,
+      data_fim:    dados.data_fim    ?? null,
+      template_id: dados.template_id ?? null,
+    });
     return { id: result.lastInsertRowid };
   },
 
@@ -116,9 +126,17 @@ const ReceitasRepository = {
     const result = db.prepare(`
       UPDATE receitas
       SET categoria = @categoria, descricao = @descricao, valor = @valor,
-          situacao = @situacao, cartao = @cartao, mes = @mes, recorrente = @recorrente
+          situacao = @situacao, cartao = @cartao, mes = @mes, recorrente = @recorrente,
+          mensal = @mensal, data_inicio = @data_inicio, data_fim = @data_fim
       WHERE id = @id
-    `).run({ ...dados, id });
+    `).run({
+      ...dados,
+      recorrente:  dados.recorrente  ?? 0,
+      mensal:      dados.mensal      ?? 0,
+      data_inicio: dados.data_inicio ?? null,
+      data_fim:    dados.data_fim    ?? null,
+      id,
+    });
     return result.changes > 0;
   },
 
@@ -144,6 +162,17 @@ const ReceitasRepository = {
     const result = db
       .prepare('DELETE FROM receitas WHERE id = ?')
       .run(id);
+    return result.changes > 0;
+  },
+
+  /**
+   * Remove o template e todas as suas cópias auto-geradas.
+   * @param {number} templateId
+   * @returns {boolean}
+   */
+  deleteTemplate(templateId) {
+    db.prepare('DELETE FROM receitas WHERE template_id = ?').run(templateId);
+    const result = db.prepare('DELETE FROM receitas WHERE id = ?').run(templateId);
     return result.changes > 0;
   },
 };

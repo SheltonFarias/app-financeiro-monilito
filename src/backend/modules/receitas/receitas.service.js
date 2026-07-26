@@ -1,5 +1,7 @@
 /**
  * receitas.service.js — Lógica de negócio do módulo Receitas.
+ * Suporta recorrência do tipo mensal (permanente) e data_fim (até uma data).
+ * Espelho da lógica de gastosFixos.service.js.
  */
 const { ReceitasRepository } = require('./receitas.repository');
 const { AppError } = require('../../utils/AppError');
@@ -12,27 +14,33 @@ const MESES_PT = [
 ];
 
 /**
- * Converte "Julho2026" em um número absoluto (ano * 12 + mesIdx) para facilitar comparações de < ou >.
+ * Converte "Julho2026" em { ano: 2026, mesIdx: 6 } (índice 0-based).
  * Retorna null se o formato for inválido.
+ * @param {string} mesStr
+ * @returns {{ ano: number, mesIdx: number } | null}
  */
-function mesParaNumero(mesStr) {
+function parseMes(mesStr) {
   if (!mesStr) return null;
   for (let i = 0; i < MESES_PT.length; i++) {
     if (mesStr.startsWith(MESES_PT[i])) {
       const ano = parseInt(mesStr.slice(MESES_PT[i].length), 10);
-      if (!isNaN(ano)) return ano * 12 + i;
+      if (!isNaN(ano)) return { ano, mesIdx: i };
     }
   }
   return null;
 }
 
 /**
- * Converte o número absoluto de volta para a string "Julho2026".
+ * Retorna o primeiro e último dia de um mês no formato "YYYY-MM-DD".
+ * @param {number} ano
+ * @param {number} mesIdx - Índice 0-based (0 = Janeiro)
+ * @returns {{ primeiroDia: string, ultimoDia: string }}
  */
-function numeroParaMes(num) {
-  const ano = Math.floor(num / 12);
-  const mesIdx = num % 12;
-  return `${MESES_PT[mesIdx]}${ano}`;
+function intervaloMes(ano, mesIdx) {
+  const primeiroDia = `${ano}-${String(mesIdx + 1).padStart(2, '0')}-01`;
+  const ultimo = new Date(ano, mesIdx + 1, 0); // dia 0 do próximo mês = último dia do mês atual
+  const ultimoDia = `${ano}-${String(mesIdx + 1).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`;
+  return { primeiroDia, ultimoDia };
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -41,62 +49,48 @@ const ReceitasService = {
   /**
    * Lista receitas de um mês.
    * Antes de retornar, propaga automaticamente as receitas recorrentes
-   * do mês anterior que ainda não existam no mês solicitado.
+   * (mensal ou com data_fim) que ainda não existam no mês solicitado.
    * @param {string} mes
    */
   listarPorMes(mes) {
     if (!mes) throw new AppError('Parâmetro "mes" é obrigatório.', 400);
 
-    // Propaga recorrentes do mês anterior antes de buscar
-    this._propagarRecorrentes(mes);
+    const parsed = parseMes(mes);
+    if (!parsed) throw new AppError(`Mês inválido: "${mes}". Use o formato "Julho2026".`, 400);
+
+    const { primeiroDia, ultimoDia } = intervaloMes(parsed.ano, parsed.mesIdx);
+
+    // Propaga recorrentes antes de buscar
+    this._propagarRecorrentes(mes, primeiroDia, ultimoDia);
 
     return ReceitasRepository.findByMes(mes);
   },
 
   /**
-   * Propaga automaticamente receitas recorrentes do passado
-   * para o mês solicitado, preenchendo todos os meses que o usuário possa ter pulado.
-   * @param {string} mesDestino - Ex: "Julho2026"
+   * Propaga automaticamente receitas recorrentes (mensal=1 ou data_fim definida)
+   * que estejam dentro da vigência do mês solicitado mas ainda não tenham
+   * um registro para esse mês.
+   *
+   * @param {string} mes - Ex: "Julho2026"
+   * @param {string} primeiroDia - "YYYY-MM-01"
+   * @param {string} ultimoDia   - "YYYY-MM-DD"
    */
-  _propagarRecorrentes(mesDestino) {
-    const destinoNum = mesParaNumero(mesDestino);
-    if (!destinoNum) return;
-
-    // Busca TODAS as receitas recorrentes
-    const todas = ReceitasRepository.findAllRecorrentes();
-
-    // Encontra a ocorrência mais recente de cada receita recorrente (antes de mesDestino)
-    const mapa = {};
-    for (const r of todas) {
-      const num = mesParaNumero(r.mes);
-      if (!num || num >= destinoNum) continue; // Ignora se do futuro ou mesmo mês
-      
-      const chave = `${r.categoria}|${r.descricao}|${r.cartao}`;
-      if (!mapa[chave] || num > mapa[chave].num) {
-         mapa[chave] = { r, num };
-      }
-    }
-
-    // Para cada receita do passado, cria as cópias em todos os meses entre ela e o mesDestino
-    for (const chave in mapa) {
-      const { r, num } = mapa[chave];
-      
-      for (let i = num + 1; i <= destinoNum; i++) {
-        const mesAlvo = numeroParaMes(i);
-        const existe = ReceitasRepository.existeIgual(mesAlvo, r.categoria, r.descricao, r.cartao);
-        
-        if (!existe) {
-          ReceitasRepository.create({
-            categoria:  r.categoria,
-            descricao:  r.descricao,
-            valor:      r.valor,
-            situacao:   'Pendente', // Novas parcelas sempre nascem Pendentes
-            cartao:     r.cartao || '—',
-            mes:        mesAlvo,
-            recorrente: 1,
-          });
-        }
-      }
+  _propagarRecorrentes(mes, primeiroDia, ultimoDia) {
+    const templates = ReceitasRepository.findTemplatesAtivos(primeiroDia, ultimoDia, mes);
+    for (const t of templates) {
+      ReceitasRepository.create({
+        categoria:   t.categoria,
+        descricao:   t.descricao,
+        valor:       t.valor,
+        situacao:    'Pendente', // Novas parcelas sempre nascem Pendentes
+        cartao:      t.cartao || '—',
+        mes,
+        recorrente:  t.mensal === 1 ? 1 : 0, // mantém compatibilidade legado
+        mensal:      t.mensal,
+        data_inicio: t.data_inicio,
+        data_fim:    t.data_fim,
+        template_id: t.id,
+      });
     }
   },
 
@@ -144,6 +138,18 @@ const ReceitasService = {
     if (!existe) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
 
     ReceitasRepository.delete(id);
+  },
+
+  /**
+   * Remove o template de recorrência E todas as cópias auto-geradas.
+   * @param {number} id - ID do template (ou de qualquer cópia)
+   */
+  removerSerie(id) {
+    const registro = ReceitasRepository.findById(id);
+    if (!registro) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
+
+    const templateId = registro.template_id ?? registro.id;
+    ReceitasRepository.deleteTemplate(templateId);
   },
 };
 
