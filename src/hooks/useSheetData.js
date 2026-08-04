@@ -68,7 +68,7 @@ export function useSheetData(mesAtual) {
  * (Evolução mensal usa apenas o mês atual por enquanto — o backend tem /historico)
  */
 function computeData(rawData, mes) {
-  const { gastosFixos, gastosVariaveis, receitas, investimentos } = rawData;
+  const { gastosFixos, gastosVariaveis, receitas, investimentos, metas = [] } = rawData;
 
   const totalGastos  = [...gastosFixos, ...gastosVariaveis].reduce((s, g) => s + g.valor, 0);
   const totalReceita = receitas.reduce((s, r) => s + r.valor, 0);
@@ -88,6 +88,7 @@ function computeData(rawData, mes) {
     gastosVariaveis,
     receitas,
     investimentos,
+    metas,
     resumo: {
       receitaRecebida:  receitas.filter(r => r.situacao === "Recebido").reduce((s, r) => s + r.valor, 0),
       dividasPagas:     [...gastosFixos, ...gastosVariaveis].filter(g => g.situacao === "Pago").reduce((s, g) => s + g.valor, 0),

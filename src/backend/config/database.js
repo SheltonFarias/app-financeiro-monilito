@@ -21,11 +21,15 @@ db.pragma('foreign_keys = ON');   // Força integridade referencial
 
 module.exports = { db };
 
-// Executa migrations pendentes automaticamente ao inicializar
-// (importado após module.exports para evitar dependência circular)
-try {
-  const { runMigrations } = require('../database/migrate');
-  runMigrations();
-} catch (err) {
-  console.error('⚠️  Erro ao executar migrations automáticas:', err.message);
-}
+// Executa migrations pendentes automaticamente ao inicializar.
+// Usa setImmediate para evitar dependência circular: migrate.js importa database.js,
+// e database.js importa migrate.js — o setImmediate garante que module.exports já
+// foi registrado pelo Node.js antes de migrate.js tentar acessá-lo.
+setImmediate(() => {
+  try {
+    const { runMigrations } = require('../database/migrate');
+    runMigrations();
+  } catch (err) {
+    console.error('⚠️  Erro ao executar migrations automáticas:', err.message);
+  }
+});

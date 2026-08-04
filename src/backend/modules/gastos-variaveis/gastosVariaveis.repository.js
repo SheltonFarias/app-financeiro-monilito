@@ -14,7 +14,8 @@ const { db } = require('../../config/database');
  * @property {string} pagamento
  * @property {string} situacao
  * @property {string} mes
- * @property {number} recorrente - 1 = recorrente (propaga para meses seguintes)
+ * @property {number} recorrente  - 1 = recorrente (propaga para meses seguintes)
+ * @property {string|null} grupo_id - ID compartilhado entre parcelas da mesma compra. NULL = avulso.
  * @property {string} created_at
  * @property {string} updated_at
  */
@@ -59,15 +60,39 @@ const GastosVariaveisRepository = {
    */
   create(dados) {
     const stmt = db.prepare(`
-      INSERT INTO gastos_variaveis (categoria, descricao, valor, data_compra, pagamento, situacao, mes, recorrente)
-      VALUES (@categoria, @descricao, @valor, @data_compra, @pagamento, @situacao, @mes, @recorrente)
+      INSERT INTO gastos_variaveis (categoria, descricao, valor, data_compra, pagamento, situacao, mes, recorrente, grupo_id)
+      VALUES (@categoria, @descricao, @valor, @data_compra, @pagamento, @situacao, @mes, @recorrente, @grupo_id)
     `);
     const result = stmt.run({
       ...dados,
       data_compra: dados.data_compra ?? null,
       recorrente:  dados.recorrente  ?? 0,
+      grupo_id:    dados.grupo_id    ?? null,
     });
     return { id: result.lastInsertRowid };
+  },
+
+  /**
+   * Busca todas as parcelas de um grupo.
+   * @param {string} grupoId
+   * @returns {GastoVariavel[]}
+   */
+  findByGrupoId(grupoId) {
+    return db
+      .prepare('SELECT * FROM gastos_variaveis WHERE grupo_id = ? ORDER BY mes ASC, id ASC')
+      .all(grupoId);
+  },
+
+  /**
+   * Remove todas as parcelas de um grupo.
+   * @param {string} grupoId
+   * @returns {number} quantidade de registros removidos
+   */
+  deleteByGrupoId(grupoId) {
+    const result = db
+      .prepare('DELETE FROM gastos_variaveis WHERE grupo_id = ?')
+      .run(grupoId);
+    return result.changes;
   },
 
   /**

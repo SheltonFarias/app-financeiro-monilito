@@ -130,8 +130,9 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
       processed.rentabilidadeCdi = parseFloat(processed.rentabilidadeCdi) || null;
 
     // Meta / Cartao Numeric Fields
-    if (processed.valor_alvo)     processed.valor_alvo     = parseFloat(processed.valor_alvo)     || 0;
-    if (processed.valor_atual)    processed.valor_atual    = parseFloat(processed.valor_atual)    || 0;
+    if (processed.valor_alvo  !== undefined) processed.valor_alvo  = parseFloat(processed.valor_alvo)  || 0;
+    if (processed.valor_atual !== undefined) processed.valor_atual = parseFloat(processed.valor_atual) || 0;
+    else processed.valor_atual = 0; // garante que sempre vai com valor
     if (processed.limite_total)   processed.limite_total   = parseFloat(processed.limite_total)   || 0;
     if (processed.dia_fechamento) processed.dia_fechamento = parseInt(processed.dia_fechamento)   || 1;
     if (processed.dia_vencimento) processed.dia_vencimento = parseInt(processed.dia_vencimento)  || 1;

@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const { db } = require('../config/database');
 
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+const MIGRATIONS_DIR = path.join(process.cwd(), 'src/backend/database/migrations');
 
 /**
  * Garante que a tabela de controle de migrations existe.

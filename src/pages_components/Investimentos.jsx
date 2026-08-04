@@ -17,12 +17,18 @@ const ATUALIZA_INTERVALO_MS = 5 * 60 * 1000; // atualiza a cada 5 minutos
 // ── Hook de cotações ──────────────────────────────────────────────────────────
 function useCotacoes(tickers) {
   const [estado, setEstado] = useState({
-    cotacoes: {},
-    cdiDiario: 0,
-    cdiAnual: 0,
-    loading: true,
-    erro: null,
-    atualizadoEm: null,
+    cotacoes:             {},
+    cdiDiario:            0,
+    cdiAnual:             0,
+    loading:              true,
+    erro:                 null,
+    atualizadoEm:         null,
+    // meta de rate-limit
+    requisicoesMes:       0,
+    limiteMaximo:         15000,
+    limiteMensalAtingido: false,
+    dadosDesatualizados:  false,
+    fonteDados:           null,
   });
 
   const buscar = useCallback(async () => {
@@ -36,13 +42,19 @@ function useCotacoes(tickers) {
       const res = await fetch(`/api/investimentos/cotacoes?${params}`);
       const json = await res.json();
       if (json.success) {
+        const meta = json.meta ?? {};
         setEstado({
-          cotacoes:     json.data.cotacoes     ?? {},
-          cdiDiario:    json.data.cdiDiario    ?? 0,
-          cdiAnual:     json.data.cdiAnual     ?? 0,
-          loading:      false,
-          erro:         null,
-          atualizadoEm: json.data.atualizadoEm,
+          cotacoes:             json.data.cotacoes     ?? {},
+          cdiDiario:            json.data.cdiDiario    ?? 0,
+          cdiAnual:             json.data.cdiAnual     ?? 0,
+          loading:              false,
+          erro:                 null,
+          atualizadoEm:         json.data.atualizadoEm,
+          requisicoesMes:       meta.requisicoesMes       ?? 0,
+          limiteMaximo:         meta.limiteMaximo         ?? 15000,
+          limiteMensalAtingido: meta.limiteMensalAtingido ?? false,
+          dadosDesatualizados:  meta.dadosDesatualizados  ?? false,
+          fonteDados:           meta.fonteDados           ?? null,
         });
       } else {
         throw new Error(json.error ?? 'Erro desconhecido');
@@ -59,6 +71,52 @@ function useCotacoes(tickers) {
   }, [buscar]);
 
   return { ...estado, refetch: buscar };
+}
+
+// ── Componente: barra de consumo de requisições mensais ───────────────────────
+function RateLimitBar({ total, limite, atingido, desatualizado, atualizadoEm }) {
+  const pct    = Math.min(100, (total / limite) * 100);
+  const cor    = pct >= 100 ? '#f87171' : pct >= 80 ? '#fbbf24' : '#34d399';
+  const label  = `${total.toLocaleString('pt-BR')} / ${limite.toLocaleString('pt-BR')} req/mês`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+          🔢 API Brapi
+        </span>
+        <span style={{
+          fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, color: cor,
+        }}>
+          {label}
+        </span>
+      </div>
+      {/* Barra de progresso */}
+      <div style={{
+        height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%', width: `${pct}%`,
+          background: cor,
+          borderRadius: 99,
+          transition: 'width 0.4s ease',
+          boxShadow: `0 0 6px ${cor}66`,
+        }} />
+      </div>
+      {/* Aviso quando limite atingido ou dados desatualizados */}
+      {(atingido || desatualizado) && (
+        <div style={{
+          fontSize: 10, color: '#fbbf24',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          ⚠️ Dados de {atualizadoEm
+            ? new Date(atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+            : '—'
+          } · limite mensal atingido
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
@@ -93,7 +151,11 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
     .map(inv => (inv.ticker || inv.nome_ticker || '').toUpperCase())
     .filter(Boolean);
 
-  const { cotacoes, cdiDiario, cdiAnual, loading, erro, atualizadoEm, refetch: refetchCotacoes } = useCotacoes(tickersBolsa);
+  const {
+    cotacoes, cdiDiario, cdiAnual, loading, erro, atualizadoEm,
+    requisicoesMes, limiteMaximo, limiteMensalAtingido, dadosDesatualizados,
+    refetch: refetchCotacoes,
+  } = useCotacoes(tickersBolsa);
 
   const handleDelete = async (item, idx) => {
     if (!window.confirm(`Tem certeza que deseja excluir "${item.ticker}"?`)) return;
@@ -225,7 +287,17 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
         <div className="card card--flat">
           <div className="tbl-header">
             <span className="tbl-header__title">Carteira de Investimentos</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Barra de consumo mensal da API Brapi */}
+              {!loading && requisicoesMes > 0 && (
+                <RateLimitBar
+                  total={requisicoesMes}
+                  limite={limiteMaximo}
+                  atingido={limiteMensalAtingido}
+                  desatualizado={dadosDesatualizados}
+                  atualizadoEm={atualizadoEm}
+                />
+              )}
               {/* Indicador de status das cotações */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
                 {loading ? (

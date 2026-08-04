@@ -29,8 +29,9 @@ export function withAuth(handler) {
       // Chama o handler original
       return await handler(req, ctx);
     } catch (err) {
+      console.error('[withAuth] Erro não tratado no handler:', err);
       return NextResponse.json(
-        { success: false, error: err.message },
+        { success: false, error: err.message || 'Erro interno do servidor.' },
         { status: err.status || 500 }
       );
     }

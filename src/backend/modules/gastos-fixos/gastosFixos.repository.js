@@ -78,6 +78,7 @@ const GastosFixosRepository = {
     return db.prepare(`
       SELECT * FROM gastos_fixos
       WHERE template_id IS NULL
+        AND mes != ?
         AND (
           mensal = 1
           OR (data_fim IS NOT NULL AND data_fim >= ?)
@@ -89,7 +90,7 @@ const GastosFixosRepository = {
             AND mes = ?
         )
       ORDER BY id ASC
-    `).all(primeiroDiaMes, ultimoDiaMes, mes);
+    `).all(mes, primeiroDiaMes, ultimoDiaMes, mes);
   },
 
   /**

@@ -143,6 +143,7 @@ export async function fetchAllData(mes) {
     gastosVariaveis: (dados.gastosVariaveis || []).map(normalizeGastoVariavel),
     receitas:        dados.receitas        || [],
     investimentos:   (dados.investimentos  || []).map(normalizeInvestimento),
+    metas:           dados.metas           || [],
   };
 }
 
@@ -227,6 +228,11 @@ export async function deleteGastoVariavel(id) {
   return apiFetch(`/api/gastos-variaveis/${id}`, { method: "DELETE" });
 }
 
+/** DELETE /api/gastos-variaveis/:id/serie — remove todas as parcelas do mesmo grupo_id */
+export async function deleteGastoVariavelSerie(id) {
+  return apiFetch(`/api/gastos-variaveis/${id}/serie`, { method: "DELETE" });
+}
+
 // ── CRUD: Receitas ────────────────────────────────────────────────────────
 
 /** POST /api/receitas */
@@ -258,6 +264,11 @@ export async function deleteReceita(id) {
   return apiFetch(`/api/receitas/${id}`, { method: "DELETE" });
 }
 
+/** DELETE /api/receitas/:id/serie — remove template e todas as cópias recorrentes */
+export async function deleteReceitaSerie(id) {
+  return apiFetch(`/api/receitas/${id}/serie`, { method: "DELETE" });
+}
+
 // ── CRUD: Investimentos ───────────────────────────────────────────────────
 
 /** POST /api/investimentos */
@@ -281,6 +292,29 @@ export async function deleteInvestimento(id) {
   return apiFetch(`/api/investimentos/${id}`, { method: "DELETE" });
 }
 
+// ── CRUD: Metas ───────────────────────────────────────────────────────────
+
+/** POST /api/metas */
+export async function addMeta(dados) {
+  return apiFetch("/api/metas", {
+    method: "POST",
+    body: JSON.stringify(dados),
+  });
+}
+
+/** PUT /api/metas/:id */
+export async function editMeta(id, dados) {
+  return apiFetch(`/api/metas/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(dados),
+  });
+}
+
+/** DELETE /api/metas/:id */
+export async function deleteMeta(id) {
+  return apiFetch(`/api/metas/${id}`, { method: "DELETE" });
+}
+
 // ── Mapeamento de aba → funções de CRUD ──────────────────────────────────
 // Mantém compatibilidade com as páginas que chamam addRow/editRow/deleteRow/updateStatus
 
@@ -289,6 +323,7 @@ const ABA_ADD = {
   gastos_variaveis: addGastoVariavel,
   receitas:         addReceita,
   investimentos:    addInvestimento,
+  metas:            addMeta,
 };
 
 const ABA_EDIT = {
@@ -296,6 +331,7 @@ const ABA_EDIT = {
   gastos_variaveis: editGastoVariavel,
   receitas:         editReceita,
   investimentos:    editInvestimento,
+  metas:            editMeta,
 };
 
 const ABA_UPDATE_STATUS = {
@@ -309,6 +345,7 @@ const ABA_DELETE = {
   gastos_variaveis: deleteGastoVariavel,
   receitas:         deleteReceita,
   investimentos:    deleteInvestimento,
+  metas:            deleteMeta,
 };
 
 /**

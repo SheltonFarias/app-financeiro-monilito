@@ -56,6 +56,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
   const [sortBy,  setSortBy]  = useState("vencimento");
   const [sortDir, setSortDir] = useState("asc");
   const [toggling, setToggling] = useState(null); // id da linha sendo alterada
+  const [deleteModal, setDeleteModal] = useState(null); // { item }
 
   const { toast } = useToast();
 
@@ -128,37 +129,14 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
 
   /* ─── Excluir da planilha ── */
   const handleDelete = async (item) => {
-    const isRecorrente = item.data_fim || item.template_id;
-
+    const isRecorrente = item.data_fim || item.template_id || item.mensal === 1;
     if (isRecorrente) {
-      // Pergunta ao usuário se quer excluir só este mês ou toda a série
-      const opcao = window.confirm(
-        `"¹${item.descricao}" é um gasto recorrente.\n\n` +
-        `Clique OK para excluir TODA A SÉRIE (todos os meses).\n` +
-        `Clique Cancelar para excluir SOMENTE este mês.`
-      );
-      setToggling(item.id);
-      try {
-        if (opcao) {
-          // Excluir toda a série via endpoint /serie
-          const templateId = item.template_id ?? item.id;
-          await deleteGastoFixoSerie(templateId);
-          toast.success(`Série "${item.descricao}" excluída por completo.`);
-        } else {
-          // Excluir somente este mês
-          await deleteRow("gastos_fixos", { id: item.id });
-          toast.success(`"${item.descricao}" excluído somente deste mês.`);
-        }
-        refetch?.();
-      } catch (err) {
-        toast.error("Erro ao excluir: " + err.message);
-      } finally {
-        setToggling(null);
-      }
+      // Abre modal elegante para recorrentes
+      setDeleteModal({ item });
       return;
     }
-
     // Gasto avulso — comportamento original
+    if (!window.confirm(`Tem certeza que deseja excluir "${item.descricao}"?`)) return;
     setToggling(item.id);
     try {
       await deleteRow("gastos_fixos", { id: item.id });
@@ -166,6 +144,39 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
       refetch?.();
     } catch (err) {
       toast.error("Erro ao excluir: " + err.message);
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  /* ─── Excluir só este mês (recorrente) ── */
+  const handleDeleteSingle = async () => {
+    const { item } = deleteModal;
+    setDeleteModal(null);
+    setToggling(item.id);
+    try {
+      await deleteRow("gastos_fixos", { id: item.id });
+      toast.success(`"${item.descricao}" excluído somente deste mês.`);
+      refetch?.();
+    } catch (err) {
+      toast.error("Erro ao excluir: " + err.message);
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  /* ─── Excluir toda a série (template + cópias) ── */
+  const handleDeleteSerie = async () => {
+    const { item } = deleteModal;
+    setDeleteModal(null);
+    setToggling(item.id);
+    try {
+      const templateId = item.template_id ?? item.id;
+      await deleteGastoFixoSerie(templateId);
+      toast.success(`Série "${item.descricao}" excluída por completo.`);
+      refetch?.();
+    } catch (err) {
+      toast.error("Erro ao excluir série: " + err.message);
     } finally {
       setToggling(null);
     }
@@ -383,6 +394,54 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
           </div>
         </div>
 
+      {/* Modal de confirmação de exclusão em série */}
+      {deleteModal && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 1000,
+          background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--hairline)",
+            borderRadius: "var(--r-xl)", padding: "32px 28px", maxWidth: 400, width: "90%",
+            boxShadow: "var(--shadow-2)",
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 12, textAlign: "center" }}>🗑️</div>
+            <p style={{ fontWeight: 700, fontSize: 16, color: "var(--ink)", textAlign: "center", marginBottom: 8 }}>
+              Excluir gasto recorrente
+            </p>
+            <p style={{ color: "var(--ink-muted)", fontSize: 13, textAlign: "center", marginBottom: 24, lineHeight: 1.5 }}>
+              <strong style={{ color: "var(--ink)" }}>"{deleteModal.item.descricao}"</strong> é um gasto fixo recorrente.
+              <br/>Como deseja excluir?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                className="btn btn--red"
+                style={{ width: "100%", padding: "10px 0", justifyContent: "center" }}
+                onClick={handleDeleteSerie}
+              >
+                🗑️ Excluir série inteira (todos os meses)
+              </button>
+              <button
+                className="btn"
+                style={{ width: "100%", padding: "10px 0", justifyContent: "center",
+                  background: "rgba(255,255,255,0.06)", border: "1px solid var(--hairline)" }}
+                onClick={handleDeleteSingle}
+              >
+                Excluir só este mês
+              </button>
+              <button
+                className="btn"
+                style={{ width: "100%", padding: "8px 0", justifyContent: "center",
+                  background: "transparent", border: "none", color: "var(--ink-muted)", fontSize: 13 }}
+                onClick={() => setDeleteModal(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

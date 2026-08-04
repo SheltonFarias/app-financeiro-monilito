@@ -86,7 +86,7 @@ function AppInner({ logout }) {
   const closeSidebar = () => setSidebarOpen(false);
 
   if (loading) return (
-    <div className="shell">
+    <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
       <Sidebar tab={tab} setTab={setTab}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}
@@ -104,7 +104,7 @@ function AppInner({ logout }) {
   );
 
   if (error) return (
-    <div className="shell">
+    <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
       <Sidebar tab={tab} setTab={setTab}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}

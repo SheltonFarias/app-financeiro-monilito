@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fmt } from "../utils/format";
-import { apiFetch } from "../utils/apiService";
+import { apiFetch, deleteMeta } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 
 /**
@@ -28,7 +28,8 @@ function fmtData(iso) {
 }
 
 export default function Metas({ data = [], onAdd, onEdit, refetch, mesAtual }) {
-  const [ativando, setAtivando] = useState(null);
+  const [ativando,  setAtivando]  = useState(null);
+  const [deletando, setDeletando] = useState(null);
   const { toast } = useToast();
 
   const handleAtivar = async (meta) => {
@@ -70,6 +71,23 @@ export default function Metas({ data = [], onAdd, onEdit, refetch, mesAtual }) {
     }
   };
 
+  const handleDelete = async (meta) => {
+    if (!window.confirm(
+      `Tem certeza que deseja excluir a meta "${meta.titulo}"?\n\nEsta ação não pode ser desfeita.`
+    )) return;
+
+    setDeletando(meta.id);
+    try {
+      await deleteMeta(meta.id);
+      toast.success(`Meta "${meta.titulo}" excluída com sucesso.`);
+      refetch?.();
+    } catch (err) {
+      toast.error("Erro ao excluir: " + err.message);
+    } finally {
+      setDeletando(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-16">
       <div className="card card--flat">
@@ -107,7 +125,7 @@ export default function Metas({ data = [], onAdd, onEdit, refetch, mesAtual }) {
 
                 {/* Cabeçalho */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h4 style={{ margin: 0, fontSize: 15, color: "var(--text-primary)", fontWeight: 700 }}>
                       {atingida && <span title="Meta atingida!" style={{ marginRight: 6 }}>🎉</span>}
                       {m.titulo}
@@ -116,10 +134,36 @@ export default function Metas({ data = [], onAdd, onEdit, refetch, mesAtual }) {
                       <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>{m.descricao}</p>
                     )}
                   </div>
-                  <button onClick={() => onEdit(m)} style={{
-                    background: "transparent", border: "none", color: "var(--text-muted)",
-                    cursor: "pointer", fontSize: 14, padding: 4,
-                  }}>⚙️</button>
+                  {/* Ações do card */}
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    <button
+                      onClick={() => onEdit(m)}
+                      title="Editar meta"
+                      style={{
+                        background: "transparent", border: "none", color: "var(--text-muted)",
+                        cursor: "pointer", fontSize: 14, padding: 4, borderRadius: 6,
+                        transition: "opacity 0.15s",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                      onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
+                    >⚙️</button>
+                    <button
+                      onClick={() => handleDelete(m)}
+                      title="Excluir meta"
+                      disabled={deletando === m.id}
+                      style={{
+                        background: "transparent", border: "none",
+                        color: deletando === m.id ? "var(--text-muted)" : "rgba(239,68,68,0.5)",
+                        cursor: deletando === m.id ? "not-allowed" : "pointer",
+                        fontSize: 14, padding: 4, borderRadius: 6,
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={e => { if (deletando !== m.id) e.currentTarget.style.color = "#ef4444"; }}
+                      onMouseLeave={e => { if (deletando !== m.id) e.currentTarget.style.color = "rgba(239,68,68,0.5)"; }}
+                    >
+                      {deletando === m.id ? "…" : "🗑️"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Barra de progresso */}

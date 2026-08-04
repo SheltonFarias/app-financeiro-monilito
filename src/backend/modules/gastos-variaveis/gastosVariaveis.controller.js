@@ -43,4 +43,11 @@ const remover = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Registro removido com sucesso.' });
 });
 
-module.exports = { listar, criar, atualizar, atualizarStatus, remover };
+/** DELETE /api/gastos-variaveis/:id/serie */
+const removerSerie = asyncHandler(async (req, res) => {
+  const id = Number(req.params.id);
+  GastosVariaveisService.removerSerie(id);
+  sendSuccess(res, { message: 'Série removida com sucesso.' });
+});
+
+module.exports = { listar, criar, atualizar, atualizarStatus, remover, removerSerie };

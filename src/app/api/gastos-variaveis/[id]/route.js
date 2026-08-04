@@ -9,7 +9,7 @@ export const PUT = withAuth(async (req, { params }) => {
     const body = await req.json();
     const { id } = await params;
     const dados = gastoVariavelSchema.parse(body);
-    const data = GastosVariaveisService.atualizar(id, dados);
+    const data = GastosVariaveisService.atualizar(Number(id), dados);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });
@@ -19,7 +19,7 @@ export const PUT = withAuth(async (req, { params }) => {
 export const DELETE = withAuth(async (req, { params }) => {
   try {
     const { id } = await params;
-    GastosVariaveisService.remover(id);
+    GastosVariaveisService.remover(Number(id));
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });

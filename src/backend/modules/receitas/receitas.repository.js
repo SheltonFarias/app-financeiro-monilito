@@ -67,6 +67,7 @@ const ReceitasRepository = {
     return db.prepare(`
       SELECT * FROM receitas
       WHERE template_id IS NULL
+        AND mes != ?
         AND (
           mensal = 1
           OR (data_fim IS NOT NULL AND data_fim >= ?)
@@ -78,7 +79,7 @@ const ReceitasRepository = {
             AND mes = ?
         )
       ORDER BY id ASC
-    `).all(primeiroDiaMes, ultimoDiaMes, mes);
+    `).all(mes, primeiroDiaMes, ultimoDiaMes, mes);
   },
 
   /**

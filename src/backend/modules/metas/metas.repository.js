@@ -12,12 +12,44 @@ const MetasRepository = {
     return db.prepare('SELECT * FROM metas WHERE id = ?').get(id);
   },
 
+  /**
+   * Retorna a meta vinculada a um gasto variável, ou undefined se não houver.
+   * Usado para sincronizar o valor_atual quando o status do gasto muda.
+   * @param {number} gastoVariavelId
+   * @returns {object|undefined}
+   */
+  findByGastoVariavelId(gastoVariavelId) {
+    return db
+      .prepare('SELECT * FROM metas WHERE gasto_variavel_id = ?')
+      .get(gastoVariavelId);
+  },
+
+  /**
+   * Incrementa (ou decrementa) o valor_atual de uma meta atomicamente.
+   * Não permite que valor_atual fique negativo.
+   * @param {number} id - ID da meta
+   * @param {number} delta - Valor positivo (pago) ou negativo (revertido)
+   */
+  ajustarValorAtual(id, delta) {
+    db.prepare(`
+      UPDATE metas
+      SET valor_atual = MAX(0, valor_atual + ?)
+      WHERE id = ?
+    `).run(delta, id);
+  },
+
   create(dados) {
     const stmt = db.prepare(`
       INSERT INTO metas (titulo, descricao, valor_alvo, valor_atual, data_limite)
       VALUES (@titulo, @descricao, @valor_alvo, @valor_atual, @data_limite)
     `);
-    const result = stmt.run(dados);
+    const result = stmt.run({
+      titulo:      dados.titulo,
+      descricao:   dados.descricao   ?? null,
+      valor_alvo:  dados.valor_alvo  ?? 0,
+      valor_atual: dados.valor_atual ?? 0,
+      data_limite: dados.data_limite ?? null,
+    });
     return { id: result.lastInsertRowid };
   },
 

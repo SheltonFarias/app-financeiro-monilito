@@ -68,6 +68,13 @@ const MetasService = {
   deletar(id) {
     const meta = MetasRepository.findById(id);
     if (!meta) throw new AppError('Meta não encontrada', 404);
+
+    // Se houver contribuição ativa, desvincula o gasto variável antes de deletar
+    // para evitar violação de integridade referencial no SQLite (foreign_keys = ON)
+    if (meta.contribuicao_ativa === 1 && meta.gasto_variavel_id) {
+      MetasRepository.desativarContribuicao(id);
+    }
+
     MetasRepository.delete(id);
     return { id };
   },

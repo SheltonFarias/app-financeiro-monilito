@@ -9,6 +9,10 @@ export const DELETE = withAuth(async (req, { params }) => {
     GastosFixosService.removerSerie(Number(id));
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });
+    console.error('[DELETE /api/gastos-fixos/:id/serie] Erro:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Erro interno' },
+      { status: error.status || 500 }
+    );
   }
 });

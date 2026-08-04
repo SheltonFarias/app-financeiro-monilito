@@ -9,7 +9,8 @@ import { withAuth } from '@/backend/middlewares/next-auth';
  */
 export const POST = withAuth(async (req, { params }) => {
   try {
-    const id = parseInt(params.id, 10);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam, 10);
     if (isNaN(id)) {
       return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
     }
@@ -34,7 +35,8 @@ export const POST = withAuth(async (req, { params }) => {
  */
 export const DELETE = withAuth(async (req, { params }) => {
   try {
-    const id = parseInt(params.id, 10);
+    const { id: idParam } = await params;
+    const id = parseInt(idParam, 10);
     if (isNaN(id)) {
       return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
     }
