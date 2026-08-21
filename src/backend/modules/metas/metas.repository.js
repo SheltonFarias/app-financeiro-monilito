@@ -1,104 +1,100 @@
 /**
- * metas.repository.js — Queries SQL do módulo Metas.
+ * metas.repository.js — Queries do módulo Metas (Prisma/PostgreSQL).
  */
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 const MetasRepository = {
-  findAll() {
-    return db.prepare('SELECT * FROM metas ORDER BY id ASC').all();
+  async findAll() {
+    return prisma.meta.findMany({ orderBy: { created_at: 'asc' } });
   },
 
-  findById(id) {
-    return db.prepare('SELECT * FROM metas WHERE id = ?').get(id);
+  async findById(id) {
+    return prisma.meta.findUnique({ where: { id } }) ?? undefined;
   },
 
   /**
-   * Retorna a meta vinculada a um gasto variável, ou undefined se não houver.
-   * Usado para sincronizar o valor_atual quando o status do gasto muda.
-   * @param {number} gastoVariavelId
-   * @returns {object|undefined}
+   * Retorna a meta vinculada a um gasto variável.
+   * @param {string} gastoVariavelId
    */
-  findByGastoVariavelId(gastoVariavelId) {
-    return db
-      .prepare('SELECT * FROM metas WHERE gasto_variavel_id = ?')
-      .get(gastoVariavelId);
+  async findByGastoVariavelId(gastoVariavelId) {
+    return prisma.meta.findFirst({ where: { gasto_variavel_id: gastoVariavelId } }) ?? undefined;
   },
 
   /**
    * Incrementa (ou decrementa) o valor_atual de uma meta atomicamente.
    * Não permite que valor_atual fique negativo.
-   * @param {number} id - ID da meta
-   * @param {number} delta - Valor positivo (pago) ou negativo (revertido)
+   * @param {string} id
+   * @param {number} delta
    */
-  ajustarValorAtual(id, delta) {
-    db.prepare(`
-      UPDATE metas
-      SET valor_atual = MAX(0, valor_atual + ?)
-      WHERE id = ?
-    `).run(delta, id);
+  async ajustarValorAtual(id, delta) {
+    const meta = await prisma.meta.findUnique({ where: { id }, select: { valor_atual: true } });
+    if (!meta) return;
+    const novoValor = Math.max(0, meta.valor_atual + delta);
+    await prisma.meta.update({ where: { id }, data: { valor_atual: novoValor } });
   },
 
-  create(dados) {
-    const stmt = db.prepare(`
-      INSERT INTO metas (titulo, descricao, valor_alvo, valor_atual, data_limite)
-      VALUES (@titulo, @descricao, @valor_alvo, @valor_atual, @data_limite)
-    `);
-    const result = stmt.run({
-      titulo:      dados.titulo,
-      descricao:   dados.descricao   ?? null,
-      valor_alvo:  dados.valor_alvo  ?? 0,
-      valor_atual: dados.valor_atual ?? 0,
-      data_limite: dados.data_limite ?? null,
+  async create(dados) {
+    const created = await prisma.meta.create({
+      data: {
+        titulo:      dados.titulo,
+        descricao:   dados.descricao   ?? null,
+        valor_alvo:  dados.valor_alvo  ?? 0,
+        valor_atual: dados.valor_atual ?? 0,
+        data_limite: dados.data_limite ?? null,
+      },
     });
-    return { id: result.lastInsertRowid };
+    return { id: created.id };
   },
 
-  update(id, dados) {
-    const result = db.prepare(`
-      UPDATE metas
-      SET titulo = @titulo, descricao = @descricao, valor_alvo = @valor_alvo, 
-          valor_atual = @valor_atual, data_limite = @data_limite,
-          gasto_variavel_id = @gasto_variavel_id, contribuicao_ativa = @contribuicao_ativa
-      WHERE id = @id
-    `).run({
-      ...dados,
-      gasto_variavel_id:  dados.gasto_variavel_id  ?? null,
-      contribuicao_ativa: dados.contribuicao_ativa ?? 0,
-      id,
+  async update(id, dados) {
+    const result = await prisma.meta.updateMany({
+      where: { id },
+      data: {
+        titulo:             dados.titulo,
+        descricao:          dados.descricao          ?? null,
+        valor_alvo:         dados.valor_alvo,
+        valor_atual:        dados.valor_atual,
+        data_limite:        dados.data_limite         ?? null,
+        gasto_variavel_id:  dados.gasto_variavel_id  ?? null,
+        contribuicao_ativa: dados.contribuicao_ativa == 1 || String(dados.contribuicao_ativa) === '1' || dados.contribuicao_ativa === true,
+      },
     });
-    return result.changes > 0;
+    return result.count > 0;
   },
 
   /**
    * Vincula um gasto variável à meta e ativa a contribuição.
-   * @param {number} id - ID da meta
-   * @param {number} gastoVariavelId - ID do gasto variável criado
+   * @param {string} id
+   * @param {string} gastoVariavelId
    */
-  ativarContribuicao(id, gastoVariavelId) {
-    const result = db.prepare(`
-      UPDATE metas
-      SET gasto_variavel_id = ?, contribuicao_ativa = 1
-      WHERE id = ?
-    `).run(gastoVariavelId, id);
-    return result.changes > 0;
+  async ativarContribuicao(id, gastoVariavelId) {
+    const result = await prisma.meta.updateMany({
+      where: { id },
+      data:  { gasto_variavel_id: gastoVariavelId, contribuicao_ativa: true },
+    });
+    return result.count > 0;
   },
 
   /**
    * Desativa a contribuição e remove o vínculo com o gasto variável.
-   * @param {number} id - ID da meta
+   * @param {string} id
    */
-  desativarContribuicao(id) {
-    const result = db.prepare(`
-      UPDATE metas
-      SET gasto_variavel_id = NULL, contribuicao_ativa = 0
-      WHERE id = ?
-    `).run(id);
-    return result.changes > 0;
+  async desativarContribuicao(id) {
+    const result = await prisma.meta.updateMany({
+      where: { id },
+      data:  { gasto_variavel_id: null, contribuicao_ativa: false },
+    });
+    return result.count > 0;
   },
 
-  delete(id) {
-    const result = db.prepare('DELETE FROM metas WHERE id = ?').run(id);
-    return result.changes > 0;
+  async delete(id) {
+    // Remove vínculo de gasto_variavel_id em outros registros antes de excluir
+    await prisma.meta.updateMany({
+      where: { gasto_variavel_id: id },
+      data:  { gasto_variavel_id: null },
+    });
+    const result = await prisma.meta.deleteMany({ where: { id } });
+    return result.count > 0;
   },
 };
 

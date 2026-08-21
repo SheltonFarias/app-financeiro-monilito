@@ -9,7 +9,7 @@ export const PATCH = withAuth(async (req, { params }) => {
     const body = await req.json();
     const { id } = await params;
     const { situacao } = updateStatusSchema.parse(body);
-    const data = GastosVariaveisService.atualizarStatus(id, situacao);
+    const data = await GastosVariaveisService.atualizarStatus(id, situacao);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });

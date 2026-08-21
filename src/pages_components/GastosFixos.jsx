@@ -129,7 +129,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
 
   /* ─── Excluir da planilha ── */
   const handleDelete = async (item) => {
-    const isRecorrente = item.data_fim || item.template_id || item.mensal === 1;
+    const isRecorrente = item.data_fim || item.template_id || (item.mensal === 1 || item.mensal === true);
     if (isRecorrente) {
       // Abre modal elegante para recorrentes
       setDeleteModal({ item });
@@ -276,7 +276,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
                       <td><CatBadge name={g.categoria} /></td>
                       <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
                         {g.descricao}
-                        {g.mensal === 1 && (
+                        {(g.mensal === 1 || g.mensal === true) && (
                           <span
                             title="♾️ Cobrança mensal — aparece em todos os meses"
                             style={{

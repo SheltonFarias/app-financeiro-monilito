@@ -7,7 +7,7 @@ export const GET = withAuth(async (req) => {
   try {
     const { searchParams } = new URL(req.url);
     const mes = searchParams.get('mes');
-    const data = DashboardService.carregarDados(mes);
+    const data = await DashboardService.carregarDados(mes);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });

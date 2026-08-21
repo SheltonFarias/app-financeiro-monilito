@@ -9,7 +9,7 @@ export const PUT = withAuth(async (req, { params }) => {
     const body = await req.json();
     const { id } = await params;
     const dados = orcamentoSchema.parse(body);
-    const data = OrcamentosService.atualizar(Number(id), dados);
+    const data = await OrcamentosService.atualizar(id, dados);
     return NextResponse.json({ success: true, data });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });
@@ -19,7 +19,7 @@ export const PUT = withAuth(async (req, { params }) => {
 export const DELETE = withAuth(async (req, { params }) => {
   try {
     const { id } = await params;
-    OrcamentosService.deletar(Number(id));
+    await OrcamentosService.deletar(id);
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status || 400 });

@@ -12,32 +12,32 @@ export const GET = withAuth(async (request) => {
 
     if (tipo === 'projecao') {
       if (!mes) return NextResponse.json({ success: false, error: 'Parâmetro mes é obrigatório' }, { status: 400 });
-      const data = RelatoriosService.gerarProjecao(mes, 11);
+      const data = await RelatoriosService.gerarProjecao(mes, 11);
       return NextResponse.json({ success: true, data });
 
     } else if (tipo === 'categoria') {
       if (!mes) return NextResponse.json({ success: false, error: 'Parâmetro mes é obrigatório' }, { status: 400 });
-      const data = RelatoriosService.agruparPorCategoria(mes);
+      const data = await RelatoriosService.agruparPorCategoria(mes);
       return NextResponse.json({ success: true, data });
 
     } else if (tipo === 'historico') {
-      const data = RelatoriosService.historicoConsolidado();
+      const data = await RelatoriosService.historicoConsolidado();
       return NextResponse.json({ success: true, data });
 
     } else if (tipo === 'comparacao') {
       if (!mes1 || !mes2) {
         return NextResponse.json({ success: false, error: 'Parâmetros mes1 e mes2 são obrigatórios' }, { status: 400 });
       }
-      const data = RelatoriosService.compararMeses(mes1, mes2);
+      const data = await RelatoriosService.compararMeses(mes1, mes2);
       return NextResponse.json({ success: true, data });
 
     } else {
       // Sem tipo: retorna projecao + categorias + historico juntos (usado pelo componente Relatorios.jsx)
       if (!mes) return NextResponse.json({ success: false, error: 'Parâmetro mes é obrigatório' }, { status: 400 });
 
-      const projecao   = RelatoriosService.gerarProjecao(mes, 11);
-      const categorias = RelatoriosService.agruparPorCategoria(mes);
-      const historico  = RelatoriosService.historicoConsolidado();
+      const projecao   = await RelatoriosService.gerarProjecao(mes, 11);
+      const categorias = await RelatoriosService.agruparPorCategoria(mes);
+      const historico  = await RelatoriosService.historicoConsolidado();
       return NextResponse.json({ success: true, data: { projecao, categorias, historico } });
     }
 

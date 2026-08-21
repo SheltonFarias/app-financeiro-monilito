@@ -52,7 +52,7 @@ const ReceitasService = {
    * (mensal ou com data_fim) que ainda não existam no mês solicitado.
    * @param {string} mes
    */
-  listarPorMes(mes) {
+  async listarPorMes(mes) {
     if (!mes) throw new AppError('Parâmetro "mes" é obrigatório.', 400);
 
     const parsed = parseMes(mes);
@@ -61,9 +61,9 @@ const ReceitasService = {
     const { primeiroDia, ultimoDia } = intervaloMes(parsed.ano, parsed.mesIdx);
 
     // Propaga recorrentes antes de buscar
-    this._propagarRecorrentes(mes, primeiroDia, ultimoDia);
+    await this._propagarRecorrentes(mes, primeiroDia, ultimoDia);
 
-    return ReceitasRepository.findByMes(mes);
+    return await ReceitasRepository.findByMes(mes);
   },
 
   /**
@@ -75,17 +75,17 @@ const ReceitasService = {
    * @param {string} primeiroDia - "YYYY-MM-01"
    * @param {string} ultimoDia   - "YYYY-MM-DD"
    */
-  _propagarRecorrentes(mes, primeiroDia, ultimoDia) {
-    const templates = ReceitasRepository.findTemplatesAtivos(primeiroDia, ultimoDia, mes);
+  async _propagarRecorrentes(mes, primeiroDia, ultimoDia) {
+    const templates = await ReceitasRepository.findTemplatesAtivos(primeiroDia, ultimoDia, mes);
     for (const t of templates) {
-      ReceitasRepository.create({
+      await ReceitasRepository.create({
         categoria:   t.categoria,
         descricao:   t.descricao,
         valor:       t.valor,
         situacao:    'Pendente', // Novas parcelas sempre nascem Pendentes
         cartao:      t.cartao || '—',
         mes,
-        recorrente:  t.mensal === 1 ? 1 : 0, // mantém compatibilidade legado
+        recorrente:  t.mensal ? true : false,
         mensal:      t.mensal,
         data_inicio: t.data_inicio,
         data_fim:    t.data_fim,
@@ -98,58 +98,58 @@ const ReceitasService = {
    * Cria uma nova receita.
    * @param {Object} dados
    */
-  criar(dados) {
-    const { id } = ReceitasRepository.create(dados);
-    return ReceitasRepository.findById(id);
+  async criar(dados) {
+    const { id } = await ReceitasRepository.create(dados);
+    return await ReceitasRepository.findById(id);
   },
 
   /**
    * Atualiza uma receita existente.
-   * @param {number} id
+   * @param {string} id
    * @param {Object} dados
    */
-  atualizar(id, dados) {
-    const existe = ReceitasRepository.findById(id);
+  async atualizar(id, dados) {
+    const existe = await ReceitasRepository.findById(id);
     if (!existe) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
 
-    ReceitasRepository.update(id, dados);
-    return ReceitasRepository.findById(id);
+    await ReceitasRepository.update(id, dados);
+    return await ReceitasRepository.findById(id);
   },
 
   /**
    * Atualiza apenas a situação de uma receita.
-   * @param {number} id
+   * @param {string} id
    * @param {string} situacao
    */
-  atualizarStatus(id, situacao) {
-    const existe = ReceitasRepository.findById(id);
+  async atualizarStatus(id, situacao) {
+    const existe = await ReceitasRepository.findById(id);
     if (!existe) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
 
-    ReceitasRepository.updateStatus(id, situacao);
-    return ReceitasRepository.findById(id);
+    await ReceitasRepository.updateStatus(id, situacao);
+    return await ReceitasRepository.findById(id);
   },
 
   /**
    * Remove uma receita.
-   * @param {number} id
+   * @param {string} id
    */
-  remover(id) {
-    const existe = ReceitasRepository.findById(id);
+  async remover(id) {
+    const existe = await ReceitasRepository.findById(id);
     if (!existe) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
 
-    ReceitasRepository.delete(id);
+    await ReceitasRepository.delete(id);
   },
 
   /**
    * Remove o template de recorrência E todas as cópias auto-geradas.
-   * @param {number} id - ID do template (ou de qualquer cópia)
+   * @param {string} id - ID do template (ou de qualquer cópia)
    */
-  removerSerie(id) {
-    const registro = ReceitasRepository.findById(id);
+  async removerSerie(id) {
+    const registro = await ReceitasRepository.findById(id);
     if (!registro) throw new AppError(`Receita com ID ${id} não encontrada.`, 404);
 
     const templateId = registro.template_id ?? registro.id;
-    ReceitasRepository.deleteTemplate(templateId);
+    await ReceitasRepository.deleteTemplate(templateId);
   },
 };
 

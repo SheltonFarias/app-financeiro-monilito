@@ -35,20 +35,21 @@ function getMesAnterior(mesStr) {
 }
 
 const DashboardService = {
-  carregarDados(mes) {
+  async carregarDados(mes) {
     if (!mes) throw new AppError('Parâmetro "mes" é obrigatório.', 400);
 
     // Lógica de Recorrência (Gastos Variáveis)
     const mesAnt = getMesAnterior(mes);
     if (mesAnt) {
-      const recorrentesAnteriores = GastosVariaveisRepository.findByMes(mesAnt).filter(g => g.recorrente === 1);
-      const atuais = GastosVariaveisRepository.findByMes(mes);
+      const gvAnt = await GastosVariaveisRepository.findByMes(mesAnt);
+      const recorrentesAnteriores = gvAnt.filter(g => g.recorrente);
+      const atuais = await GastosVariaveisRepository.findByMes(mes);
       
       for (const rec of recorrentesAnteriores) {
         // Verifica se já foi copiado
-        const jaExiste = atuais.some(a => a.descricao === rec.descricao && a.valor === rec.valor && a.recorrente === 1);
+        const jaExiste = atuais.some(a => a.descricao === rec.descricao && a.valor === rec.valor && a.recorrente);
         if (!jaExiste) {
-          GastosVariaveisRepository.create({
+          await GastosVariaveisRepository.create({
             categoria: rec.categoria,
             descricao: rec.descricao,
             valor: rec.valor,
@@ -58,7 +59,7 @@ const DashboardService = {
             situacao: 'Pendente',
             mes: mes,
             subcategoria: rec.subcategoria,
-            recorrente: 1,
+            recorrente: true,
             frequencia: rec.frequencia,
             tags: rec.tags,
           });
@@ -66,13 +67,23 @@ const DashboardService = {
       }
     }
 
-    const gastosFixos     = GastosFixosService.listarPorMes(mes);
-    const gastosVariaveis = GastosVariaveisRepository.findByMes(mes);
-    const receitas        = ReceitasService.listarPorMes(mes);
-    const investimentos   = InvestimentosRepository.findAll();
-    const orcamentos      = OrcamentosRepository.findByMes(mes);
-    const metas           = MetasRepository.findAll();
-    const cartoes         = CartoesRepository.findAll();
+    const [
+      gastosFixos,
+      gastosVariaveis,
+      receitas,
+      investimentos,
+      orcamentos,
+      metas,
+      cartoes
+    ] = await Promise.all([
+      GastosFixosService.listarPorMes(mes),
+      GastosVariaveisRepository.findByMes(mes),
+      ReceitasService.listarPorMes(mes),
+      InvestimentosRepository.findAll(),
+      OrcamentosRepository.findByMes(mes),
+      MetasRepository.findAll(),
+      CartoesRepository.findAll()
+    ]);
 
     return {
       gastosFixos,
@@ -89,18 +100,20 @@ const DashboardService = {
    * Carrega TODOS os dados históricos (todos os meses) para evolução mensal.
    * Usado pelo gráfico de evolução do frontend.
    *
-   * @returns {{
+   * @returns {Promise<{
    *   gastosFixos: Object[],
    *   gastosVariaveis: Object[],
    *   receitas: Object[]
-   * }}
+   * }>}
    */
-  carregarHistorico() {
-    return {
-      gastosFixos:     GastosFixosRepository.findAll(),
-      gastosVariaveis: GastosVariaveisRepository.findAll(),
-      receitas:        ReceitasRepository.findAll(),
-    };
+  async carregarHistorico() {
+    const [gastosFixos, gastosVariaveis, receitas] = await Promise.all([
+      GastosFixosRepository.findAll(),
+      GastosVariaveisRepository.findAll(),
+      ReceitasRepository.findAll(),
+    ]);
+
+    return { gastosFixos, gastosVariaveis, receitas };
   },
 };
 

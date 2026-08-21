@@ -1,11 +1,11 @@
 /**
- * investimentos.repository.js — Queries SQL do módulo Investimentos.
+ * investimentos.repository.js — Queries do módulo Investimentos (Prisma/PostgreSQL).
  */
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 /**
  * @typedef {Object} Investimento
- * @property {number} id
+ * @property {string} id
  * @property {string} ticker
  * @property {string} tipo
  * @property {number} quantidade
@@ -13,84 +13,58 @@ const { db } = require('../../config/database');
  * @property {string|null} setor
  * @property {string|null} data_compra
  * @property {number|null} rentabilidade_cdi
- * @property {string} created_at
- * @property {string} updated_at
+ * @property {number|null} dividendo_anual
  */
 
 const InvestimentosRepository = {
-  /**
-   * Busca todos os investimentos.
-   * @returns {Investimento[]}
-   */
-  findAll() {
-    return db
-      .prepare('SELECT * FROM investimentos ORDER BY ticker ASC')
-      .all();
+  async findAll() {
+    return prisma.investimento.findMany({ orderBy: { ticker: 'asc' } });
   },
 
-  /**
-   * Busca um investimento pelo ID.
-   * @param {number} id
-   * @returns {Investimento | undefined}
-   */
-  findById(id) {
-    return db
-      .prepare('SELECT * FROM investimentos WHERE id = ?')
-      .get(id);
+  async findById(id) {
+    return prisma.investimento.findUnique({ where: { id } }) ?? undefined;
   },
 
-  /**
-   * Busca um investimento pelo ticker.
-   * @param {string} ticker
-   * @returns {Investimento | undefined}
-   */
-  findByTicker(ticker) {
-    return db
-      .prepare('SELECT * FROM investimentos WHERE ticker = ?')
-      .get(ticker);
+  async findByTicker(ticker) {
+    return prisma.investimento.findUnique({ where: { ticker } }) ?? undefined;
   },
 
-  /**
-   * Insere um novo investimento.
-   * @param {Omit<Investimento, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {{ id: number }}
-   */
-  create(dados) {
-    const stmt = db.prepare(`
-      INSERT INTO investimentos (ticker, tipo, quantidade, preco_medio, setor, data_compra, rentabilidade_cdi)
-      VALUES (@ticker, @tipo, @quantidade, @preco_medio, @setor, @data_compra, @rentabilidade_cdi)
-    `);
-    const result = stmt.run(dados);
-    return { id: result.lastInsertRowid };
+  async create(dados) {
+    const created = await prisma.investimento.create({
+      data: {
+        ticker:            dados.ticker,
+        tipo:              dados.tipo,
+        quantidade:        dados.quantidade        ?? 0,
+        preco_medio:       dados.preco_medio       ?? 0,
+        setor:             dados.setor             ?? null,
+        data_compra:       dados.data_compra       ?? null,
+        rentabilidade_cdi: dados.rentabilidade_cdi ?? null,
+        dividendo_anual:   dados.dividendo_anual   ?? null,
+      },
+    });
+    return { id: created.id };
   },
 
-  /**
-   * Atualiza todos os campos de um investimento.
-   * @param {number} id
-   * @param {Omit<Investimento, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {boolean}
-   */
-  update(id, dados) {
-    const result = db.prepare(`
-      UPDATE investimentos
-      SET ticker = @ticker, tipo = @tipo, quantidade = @quantidade,
-          preco_medio = @preco_medio, setor = @setor, data_compra = @data_compra,
-          rentabilidade_cdi = @rentabilidade_cdi
-      WHERE id = @id
-    `).run({ ...dados, id });
-    return result.changes > 0;
+  async update(id, dados) {
+    const result = await prisma.investimento.updateMany({
+      where: { id },
+      data: {
+        ticker:            dados.ticker,
+        tipo:              dados.tipo,
+        quantidade:        dados.quantidade,
+        preco_medio:       dados.preco_medio,
+        setor:             dados.setor             ?? null,
+        data_compra:       dados.data_compra       ?? null,
+        rentabilidade_cdi: dados.rentabilidade_cdi ?? null,
+        dividendo_anual:   dados.dividendo_anual   ?? null,
+      },
+    });
+    return result.count > 0;
   },
 
-  /**
-   * Remove um investimento pelo ID.
-   * @param {number} id
-   * @returns {boolean}
-   */
-  delete(id) {
-    const result = db
-      .prepare('DELETE FROM investimentos WHERE id = ?')
-      .run(id);
-    return result.changes > 0;
+  async delete(id) {
+    const result = await prisma.investimento.deleteMany({ where: { id } });
+    return result.count > 0;
   },
 };
 

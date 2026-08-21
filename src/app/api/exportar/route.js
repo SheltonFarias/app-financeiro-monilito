@@ -15,7 +15,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Formato não suportado ou não informado' }, { status: 400 });
     }
 
-    const { gastosFixos, gastosVariaveis, receitas } = DashboardService.carregarDados(mes);
+    const { gastosFixos, gastosVariaveis, receitas } = await DashboardService.carregarDados(mes);
 
     // Constrói as linhas do CSV
     const rows = [

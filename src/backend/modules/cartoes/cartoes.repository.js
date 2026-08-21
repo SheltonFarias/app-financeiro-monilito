@@ -1,39 +1,47 @@
 /**
- * cartoes.repository.js — Queries SQL do módulo Cartões de Crédito.
+ * cartoes.repository.js — Queries do módulo Cartões de Crédito (Prisma/PostgreSQL).
  */
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 const CartoesRepository = {
-  findAll() {
-    return db.prepare('SELECT * FROM cartoes_credito ORDER BY id ASC').all();
+  async findAll() {
+    return prisma.cartaoCredito.findMany({ orderBy: { created_at: 'asc' } });
   },
 
-  findById(id) {
-    return db.prepare('SELECT * FROM cartoes_credito WHERE id = ?').get(id);
+  async findById(id) {
+    return prisma.cartaoCredito.findUnique({ where: { id } }) ?? undefined;
   },
 
-  create(dados) {
-    const stmt = db.prepare(`
-      INSERT INTO cartoes_credito (nome, limite_total, dia_fechamento, dia_vencimento)
-      VALUES (@nome, @limite_total, @dia_fechamento, @dia_vencimento)
-    `);
-    const result = stmt.run(dados);
-    return { id: result.lastInsertRowid };
+  async create(dados) {
+    const created = await prisma.cartaoCredito.create({
+      data: {
+        nome:           dados.nome,
+        limite_total:   dados.limite_total,
+        dia_fechamento: dados.dia_fechamento,
+        dia_vencimento: dados.dia_vencimento,
+      },
+    });
+    return { id: created.id };
   },
 
-  update(id, dados) {
-    const result = db.prepare(`
-      UPDATE cartoes_credito
-      SET nome = @nome, limite_total = @limite_total, dia_fechamento = @dia_fechamento, dia_vencimento = @dia_vencimento
-      WHERE id = @id
-    `).run({ ...dados, id });
-    return result.changes > 0;
+  async update(id, dados) {
+    const result = await prisma.cartaoCredito.updateMany({
+      where: { id },
+      data: {
+        nome:           dados.nome,
+        limite_total:   dados.limite_total,
+        dia_fechamento: dados.dia_fechamento,
+        dia_vencimento: dados.dia_vencimento,
+      },
+    });
+    return result.count > 0;
   },
 
-  delete(id) {
-    const result = db.prepare('DELETE FROM cartoes_credito WHERE id = ?').run(id);
-    return result.changes > 0;
+  async delete(id) {
+    const result = await prisma.cartaoCredito.deleteMany({ where: { id } });
+    return result.count > 0;
   },
 };
 
 module.exports = { CartoesRepository };
+

@@ -218,7 +218,7 @@ export default function Metas({ data = [], onAdd, onEdit, refetch, mesAtual }) {
 
                 {/* Botão de contribuição */}
                 {!atingida && (
-                  m.contribuicao_ativa === 1 ? (
+                  (m.contribuicao_ativa === 1 || m.contribuicao_ativa === true) ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       <div style={{
                         display: "flex", alignItems: "center", gap: 6, justifyContent: "center",

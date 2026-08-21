@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { addRow, editRow } from "../utils/apiService";
 import { useToast } from "./Toast";
 import { useConfig } from "../hooks/useConfig";
+import AutocompleteTicker from "./AutocompleteTicker";
 
 function getFieldDefs(config) {
   const cReceitas = config?.categorias_receitas || ["Trabalho","Apartamento","Outros","Mãe"];
@@ -38,13 +39,14 @@ function getFieldDefs(config) {
       { key: "situacao",   label: "Situação",     type: "select", options: ["Pendente","Recebido"] },
     ],
     "Investimento": [
-      { key: "ticker",          label: "Ticker / Nome",          type: "text",   placeholder: "Ex: MXRF11, PETR4..." },
       { key: "tipo",            label: "Tipo",                    type: "select", options: ["FII","Ação","ETF","Renda Fixa"] },
+      { key: "ticker",          label: "Ticker / Nome",          type: "autocomplete_ticker",   placeholder: "Ex: MXRF11, PETR4..." },
       { key: "quantidade",      label: "Quantidade",              type: "number", placeholder: "0" },
       { key: "precoMedio",      label: "Preço Médio (R$)",        type: "number", placeholder: "0.00" },
       { key: "setor",           label: "Setor",                   type: "text",   placeholder: "Ex: Papel, Logística..." },
       { key: "dataCompra",      label: "Data da Compra",          type: "date" },
       { key: "rentabilidadeCdi", label: "Rentabilidade (% do CDI)", type: "number", placeholder: "Ex: 110 (para 110% do CDI)", condicional: "Renda Fixa" },
+      { key: "dividendoAnual",  label: "Dividendo Anual (R$/cota)", type: "number", placeholder: "Ex: 12.00", condicionalNot: "Renda Fixa", dica: "💡 Dividendo anual estimado por cota/ação. Usado para calcular o DY% na análise." },
     ],
     "Orçamento": [
       { key: "categoria",    label: "Categoria",         type: "select", options: cGastosVar },
@@ -128,6 +130,10 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     if (processed.qtd_parcelas)    processed.qtd_parcelas    = parseInt(processed.qtd_parcelas)       || 1;
     if (processed.rentabilidadeCdi !== undefined && processed.rentabilidadeCdi !== null && processed.rentabilidadeCdi !== '')
       processed.rentabilidadeCdi = parseFloat(processed.rentabilidadeCdi) || null;
+    if (processed.dividendoAnual !== undefined && processed.dividendoAnual !== null && processed.dividendoAnual !== '')
+      processed.dividendoAnual = parseFloat(processed.dividendoAnual) || null;
+    else if (processed.dividendoAnual === '')
+      processed.dividendoAnual = null;
 
     // Meta / Cartao Numeric Fields
     if (processed.valor_alvo  !== undefined) processed.valor_alvo  = parseFloat(processed.valor_alvo)  || 0;
@@ -194,28 +200,43 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
         <h3 className="modal__title">{initialData ? "✎ Editar" : "+ Adicionar"} {tipo}</h3>
 
         {fields.map(field => {
-          // Campo condicional: só renderiza quando form.tipo corresponde ao valor esperado
-          const isCondicional = !!field.condicional;
-          const condVisible   = !isCondicional || form.tipo === field.condicional;
+          // condicional: só mostra quando form.tipo === valor (ex: Renda Fixa)
+          const isCondicional    = !!field.condicional;
+          const condVisible      = !isCondicional || form.tipo === field.condicional;
+
+          // condicionalNot: só mostra quando form.tipo ≠ valor (ex: não Renda Fixa)
+          const isCondicionalNot = !!field.condicionalNot;
+          const condNotVisible   = !isCondicionalNot || form.tipo !== field.condicionalNot;
+
+          // Campo só aparece se ambas as condições forem verdadeiras
+          const visible = condVisible && condNotVisible;
+          const hasAnimation = isCondicional || isCondicionalNot;
 
           return (
             <div
               key={field.key}
               className="modal__field"
-              style={isCondicional ? {
-                maxHeight:   condVisible ? '120px' : '0',
-                opacity:     condVisible ? 1 : 0,
-                overflow:    'hidden',
-                marginBottom: condVisible ? undefined : 0,
-                paddingBottom: condVisible ? undefined : 0,
-                transition:  'max-height 0.3s ease, opacity 0.25s ease',
-                pointerEvents: condVisible ? 'auto' : 'none',
+              style={hasAnimation ? {
+                maxHeight:    visible ? '140px' : '0',
+                opacity:      visible ? 1 : 0,
+                overflow:     'hidden',
+                marginBottom: visible ? undefined : 0,
+                paddingBottom:visible ? undefined : 0,
+                transition:   'max-height 0.3s ease, opacity 0.25s ease',
+                pointerEvents: visible ? 'auto' : 'none',
               } : undefined}
             >
-              {condVisible && (
+              {visible && (
                 <>
                   <label className="modal__label">{field.label}</label>
-                  {isCondicional && (
+                  {/* Dica genérica do campo */}
+                  {field.dica && (
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
+                      {field.dica}
+                    </div>
+                  )}
+                  {/* Dica específica do CDI */}
+                  {isCondicional && !field.dica && (
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
                       💡 Taxa contratada em % do CDI — ex: <strong>110</strong> para 110% do CDI
                     </div>
@@ -231,10 +252,30 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
                         <option key={opt} value={opt}>{opt}</option>
                       ))}
                     </select>
+                  ) : field.type === "autocomplete_ticker" && form.tipo !== "Renda Fixa" ? (
+                    <AutocompleteTicker
+                      value={form[field.key] || ""}
+                      onChange={val => set(field.key, val)}
+                      placeholder={field.placeholder}
+                      onSelectDetails={(details) => {
+                        setForm(prev => {
+                          const updates = { ...prev };
+                          if (details.preco) updates.precoMedio = details.preco;
+                          if (details.setor) updates.setor = details.setor;
+                          if (details.dividendoAnual !== undefined) updates.dividendoAnual = details.dividendoAnual;
+                          
+                          if (!prev.dataCompra) {
+                            const today = new Date().toISOString().split('T')[0];
+                            updates.dataCompra = today;
+                          }
+                          return updates;
+                        });
+                      }}
+                    />
                   ) : (
                     <input
                       className="modal__input"
-                      type={field.type === "number" ? "text" : field.type}
+                      type={field.type === "number" ? "text" : field.type === "autocomplete_ticker" ? "text" : field.type}
                       inputMode={field.type === "number" ? "decimal" : undefined}
                       value={form[field.key] || ""}
                       onChange={e => set(field.key, e.target.value)}

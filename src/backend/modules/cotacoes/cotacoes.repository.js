@@ -2,7 +2,7 @@
  * cotacoes.repository.js
  *
  * Camada de acesso ao banco de dados para o módulo de cotações Brapi.
- * Todas as operações são síncronas (better-sqlite3).
+ * Todas as operações são assíncronas (Prisma + PostgreSQL/Supabase).
  *
  * Responsabilidades:
  *  - Cache persistente de cotações (substitui o Map in-memory volátil)
@@ -10,7 +10,7 @@
  *  - Controle de rate-limit mensal (contador singleton com auto-reset)
  */
 
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const LIMITE_MENSAL       = 15_000;
@@ -22,23 +22,20 @@ const RETENCAO_HISTORICO  = 90; // dias
  * Retorna o estado atual do contador de requisições.
  * Se o mês mudou, reseta o contador automaticamente antes de retornar.
  *
- * @returns {{ mesAno: string, total: number, limiteAtingido: boolean }}
+ * @returns {Promise<{ mesAno: string, total: number, limiteAtingido: boolean }>}
  */
-function getControleRequisicoes() {
+async function getControleRequisicoes() {
   const mesAtual = new Date().toISOString().slice(0, 7); // "YYYY-MM"
 
-  const row = db
-    .prepare('SELECT mes_ano_referencia, total_requisicoes FROM controle_requisicoes WHERE id = 1')
-    .get();
+  const row = await prisma.controleRequisicao.findUnique({ where: { id: 1 } });
 
-  // Auto-reset se o mês mudou
+  // Auto-reset se o mês mudou ou registro não existe
   if (!row || row.mes_ano_referencia !== mesAtual) {
-    db.prepare(`
-      UPDATE controle_requisicoes
-      SET mes_ano_referencia = ?, total_requisicoes = 0, atualizado_em = datetime('now')
-      WHERE id = 1
-    `).run(mesAtual);
-
+    await prisma.controleRequisicao.upsert({
+      where:  { id: 1 },
+      create: { id: 1, mes_ano_referencia: mesAtual, total_requisicoes: 0 },
+      update: { mes_ano_referencia: mesAtual, total_requisicoes: 0 },
+    });
     return { mesAno: mesAtual, total: 0, limiteAtingido: false };
   }
 
@@ -51,24 +48,18 @@ function getControleRequisicoes() {
 
 /**
  * Incrementa o contador de requisições do mês corrente em `n` unidades.
- * Verifica e aplica o reset automático se necessário antes de incrementar.
  *
- * @param {number} [n=1] — número de requisições HTTP realizadas (1 chamada pode cobrir múltiplos tickers)
- * @returns {{ total: number }} — novo total após incremento
+ * @param {number} [n=1]
+ * @returns {Promise<{ total: number }>}
  */
-function incrementarRequisicoes(n = 1) {
+async function incrementarRequisicoes(n = 1) {
   // Garante que o mês está correto (auto-reset se necessário)
-  getControleRequisicoes();
+  await getControleRequisicoes();
 
-  db.prepare(`
-    UPDATE controle_requisicoes
-    SET total_requisicoes = total_requisicoes + ?, atualizado_em = datetime('now')
-    WHERE id = 1
-  `).run(n);
-
-  const updated = db
-    .prepare('SELECT total_requisicoes FROM controle_requisicoes WHERE id = 1')
-    .get();
+  const updated = await prisma.controleRequisicao.update({
+    where: { id: 1 },
+    data:  { total_requisicoes: { increment: n } },
+  });
 
   return { total: updated.total_requisicoes };
 }
@@ -80,96 +71,101 @@ function incrementarRequisicoes(n = 1) {
  *
  * @param {string} symbol   — ticker do ativo (ex: "PETR4")
  * @param {number} ttlMin   — validade em minutos (padrão: 15)
- * @returns {object|null}   — dados da cotação ou null se expirada/inexistente
+ * @returns {Promise<object|null>}
  */
-function getCotacaoRecente(symbol, ttlMin = 15) {
-  const row = db.prepare(`
-    SELECT symbol, preco, var_dia, volume, market_cap, nome, cotacao_em, salvo_em
-    FROM cotacoes
-    WHERE symbol = ?
-      AND salvo_em >= datetime('now', ? || ' minutes')
-  `).get(symbol, `-${ttlMin}`);
+async function getCotacaoRecente(symbol, ttlMin = 15) {
+  const limite = new Date(Date.now() - ttlMin * 60 * 1000);
+
+  const row = await prisma.cotacao.findFirst({
+    where: {
+      symbol,
+      salvo_em: { gte: limite },
+    },
+  });
 
   return row ?? null;
 }
 
 /**
  * Insere ou atualiza a cotação mais recente de um ativo.
- * Também aciona a limpeza do histórico antigo (>90 dias) para o mesmo ativo.
  *
  * @param {string} symbol
  * @param {{ preco, varDia, volume, marketCap, nome, cotacaoEm }} dados
  */
-function upsertCotacao(symbol, dados) {
+async function upsertCotacao(symbol, dados) {
   const { preco, varDia, volume, marketCap, nome, cotacaoEm } = dados;
 
-  db.prepare(`
-    INSERT INTO cotacoes (symbol, preco, var_dia, volume, market_cap, nome, cotacao_em, salvo_em)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(symbol) DO UPDATE SET
-      preco      = excluded.preco,
-      var_dia    = excluded.var_dia,
-      volume     = excluded.volume,
-      market_cap = excluded.market_cap,
-      nome       = excluded.nome,
-      cotacao_em = excluded.cotacao_em,
-      salvo_em   = excluded.salvo_em
-  `).run(symbol, preco ?? null, varDia ?? null, volume ?? null, marketCap ?? null, nome ?? null, cotacaoEm ?? null);
+  const payload = {
+    preco:      preco      ?? null,
+    var_dia:    varDia     ?? null,
+    volume:     volume     ?? null,
+    market_cap: marketCap  ?? null,
+    nome:       nome       ?? null,
+    cotacao_em: cotacaoEm  ?? null,
+    salvo_em:   new Date(),
+  };
+
+  await prisma.cotacao.upsert({
+    where:  { symbol },
+    create: { symbol, ...payload },
+    update: payload,
+  });
 }
 
 // ── Histórico de Cotações ──────────────────────────────────────────────────────
 
 /**
- * Persiste um ponto histórico para o ativo e remove registros com mais de 90 dias.
+ * Persiste um ponto histórico e remove registros com mais de 90 dias.
  *
  * @param {string} symbol
  * @param {{ preco, varDia, volume, marketCap, cotacaoEm }} dados
  */
-function salvarHistorico(symbol, dados) {
+async function salvarHistorico(symbol, dados) {
   const { preco, varDia, volume, marketCap, cotacaoEm } = dados;
 
-  db.prepare(`
-    INSERT INTO historico_cotacoes (symbol, preco, var_dia, volume, market_cap, cotacao_em, salvo_em)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-  `).run(symbol, preco ?? null, varDia ?? null, volume ?? null, marketCap ?? null, cotacaoEm ?? null);
+  await prisma.historicoCotacao.create({
+    data: {
+      symbol,
+      preco:      preco     ?? null,
+      var_dia:    varDia    ?? null,
+      volume:     volume    ?? null,
+      market_cap: marketCap ?? null,
+      cotacao_em: cotacaoEm ?? null,
+      salvo_em:   new Date(),
+    },
+  });
 
-  // Política de retenção: 90 dias
-  db.prepare(`
-    DELETE FROM historico_cotacoes
-    WHERE symbol = ? AND salvo_em < datetime('now', '-${RETENCAO_HISTORICO} days')
-  `).run(symbol);
+  // Política de retenção: remove registros com mais de 90 dias
+  const corte = new Date(Date.now() - RETENCAO_HISTORICO * 24 * 60 * 60 * 1000);
+  await prisma.historicoCotacao.deleteMany({
+    where: { symbol, salvo_em: { lt: corte } },
+  });
 }
 
 /**
  * Retorna a série histórica de um ativo, da mais recente para a mais antiga.
  *
  * @param {string} symbol
- * @param {number} [limit=90] — número máximo de registros
- * @returns {Array<{ symbol, preco, var_dia, volume, market_cap, cotacao_em, salvo_em }>}
+ * @param {number} [limit=90]
+ * @returns {Promise<Array>}
  */
-function getHistoricoPorAtivo(symbol, limit = 90) {
-  return db.prepare(`
-    SELECT symbol, preco, var_dia, volume, market_cap, cotacao_em, salvo_em
-    FROM historico_cotacoes
-    WHERE symbol = ?
-    ORDER BY salvo_em DESC
-    LIMIT ?
-  `).all(symbol, limit);
+async function getHistoricoPorAtivo(symbol, limit = 90) {
+  return prisma.historicoCotacao.findMany({
+    where:   { symbol },
+    orderBy: { salvo_em: 'desc' },
+    take:    limit,
+  });
 }
 
 /**
- * Busca a cotação mais recente disponível no banco para um ativo,
- * independente do TTL (usado como fallback quando o limite mensal é atingido).
+ * Busca a cotação mais recente disponível (fallback quando limite mensal é atingido).
  *
  * @param {string} symbol
- * @returns {object|null}
+ * @returns {Promise<object|null>}
  */
-function getCotacaoFallback(symbol) {
-  return db.prepare(`
-    SELECT symbol, preco, var_dia, volume, market_cap, nome, cotacao_em, salvo_em
-    FROM cotacoes
-    WHERE symbol = ?
-  `).get(symbol) ?? null;
+async function getCotacaoFallback(symbol) {
+  const row = await prisma.cotacao.findUnique({ where: { symbol } });
+  return row ?? null;
 }
 
 module.exports = {
@@ -182,3 +178,4 @@ module.exports = {
   salvarHistorico,
   getHistoricoPorAtivo,
 };
+

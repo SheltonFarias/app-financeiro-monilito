@@ -85,7 +85,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
   /* ─── Excluir da planilha ── */
   const handleDelete = async (item, idx) => {
     // Receita recorrente ou mensal — abre modal diferenciado
-    if (item.template_id || item.mensal === 1 || item.recorrente === 1) {
+    if (item.template_id || (item.mensal === 1 || item.mensal === true) || (item.recorrente === 1 || item.recorrente === true)) {
       setDeleteModal({ item, idx });
       return;
     }
@@ -221,7 +221,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
                     <tr key={i}>
                       <td><CatBadge name={r.categoria} /></td>
                       <td style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                        {r.recorrente === 1 && <span title="Receita Recorrente" style={{ marginRight: 6, fontSize: "0.9em" }}>🔁</span>}
+                        {(r.recorrente === 1 || r.recorrente === true) && <span title="Receita Recorrente" style={{ marginRight: 6, fontSize: "0.9em" }}>🔁</span>}
                         {r.descricao}
                       </td>
                       <td className="val val--teal">{fmt(r.valor)}</td>

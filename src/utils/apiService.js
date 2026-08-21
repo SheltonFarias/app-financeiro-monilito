@@ -76,12 +76,10 @@ export async function apiFetch(path, options = {}) {
  */
 function normalizeInvestimento(inv) {
   if (!inv) return inv;
-  // Extrai as chaves snake_case e constrói um objeto limpo com camelCase
-  const { preco_medio, data_compra, ...rest } = inv;
   return {
-    ...rest,
-    precoMedio: preco_medio ?? inv.precoMedio ?? 0,
-    dataCompra: data_compra ?? inv.dataCompra ?? null,
+    ...inv,
+    precoMedio: inv.preco_medio ?? inv.precoMedio ?? 0,
+    dataCompra: inv.data_compra ?? inv.dataCompra ?? null,
   };
 }
 

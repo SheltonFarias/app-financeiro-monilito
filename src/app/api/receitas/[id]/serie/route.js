@@ -10,7 +10,7 @@ import { withAuth } from '@/backend/middlewares/next-auth';
 export const DELETE = withAuth(async (req, { params }) => {
   try {
     const { id } = await params;
-    ReceitasService.removerSerie(Number(id));
+    await ReceitasService.removerSerie(id);
     return NextResponse.json({ success: true, data: { deleted: true } });
   } catch (error) {
     return NextResponse.json(

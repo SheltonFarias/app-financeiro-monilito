@@ -4,7 +4,7 @@ import { withAuth } from '@/backend/middlewares/next-auth';
 
 export const GET = withAuth(async (request) => {
   try {
-    const config = ConfiguracoesService.getAllParsed();
+    const config = await ConfiguracoesService.getAllParsed();
     return NextResponse.json({ success: true, data: config });
   } catch (error) {
     console.error('Erro GET /api/configuracoes:', error);
@@ -17,7 +17,7 @@ export const PUT = withAuth(async (request) => {
     const body = await request.json();
     const { chave, valor } = body;
 
-    const result = ConfiguracoesService.updateConfig(chave, valor);
+    const result = await ConfiguracoesService.updateConfig(chave, valor);
     return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Erro PUT /api/configuracoes:', error);

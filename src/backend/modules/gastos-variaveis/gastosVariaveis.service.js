@@ -9,11 +9,11 @@ const GastosVariaveisService = {
   /**
    * Lista gastos variáveis de um mês.
    * @param {string} mes
-   * @returns {import('./gastosVariaveis.repository').GastoVariavel[]}
+   * @returns {Promise<import('./gastosVariaveis.repository').GastoVariavel[]>}
    */
-  listarPorMes(mes) {
+  async listarPorMes(mes) {
     if (!mes) throw new AppError('Parâmetro "mes" é obrigatório.', 400);
-    return GastosVariaveisRepository.findByMes(mes);
+    return await GastosVariaveisRepository.findByMes(mes);
   },
 
   /**
@@ -21,7 +21,7 @@ const GastosVariaveisService = {
    * Converte dataCompra (camelCase do frontend) para data_compra (snake_case do DB).
    * @param {Object} dados - Dados validados pelo schema
    */
-  criar(dados) {
+  async criar(dados) {
     const NOMES_MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
     
     // Helper para projetar meses
@@ -73,20 +73,20 @@ const GastosVariaveisService = {
       delete dbDados.subcategoria;
       delete dbDados.tags;
 
-      const { id } = GastosVariaveisRepository.create(dbDados);
+      const { id } = await GastosVariaveisRepository.create(dbDados);
       if (i === 0) primeiroId = id;
     }
 
-    return GastosVariaveisRepository.findById(primeiroId);
+    return await GastosVariaveisRepository.findById(primeiroId);
   },
 
   /**
    * Atualiza um gasto variável existente.
-   * @param {number} id
+   * @param {string} id
    * @param {Object} dados
    */
-  atualizar(id, dados) {
-    const existe = GastosVariaveisRepository.findById(id);
+  async atualizar(id, dados) {
+    const existe = await GastosVariaveisRepository.findById(id);
     if (!existe) throw new AppError(`Gasto variável com ID ${id} não encontrado.`, 404);
 
     const dbDados = {
@@ -98,8 +98,8 @@ const GastosVariaveisService = {
     delete dbDados.subcategoria;
     delete dbDados.tags;
 
-    GastosVariaveisRepository.update(id, dbDados);
-    return GastosVariaveisRepository.findById(id);
+    await GastosVariaveisRepository.update(id, dbDados);
+    return await GastosVariaveisRepository.findById(id);
   },
 
   /**
@@ -107,27 +107,27 @@ const GastosVariaveisService = {
    * Se o gasto estiver vinculado a uma meta via gasto_variavel_id, sincroniza o valor_atual:
    *  - "Pago"     → incrementa valor_atual da meta pelo valor do gasto
    *  - "Pendente" → decrementa valor_atual da meta pelo valor do gasto (mín. 0)
-   * @param {number} id
+   * @param {string} id
    * @param {string} situacao
    */
-  atualizarStatus(id, situacao) {
-    const existe = GastosVariaveisRepository.findById(id);
+  async atualizarStatus(id, situacao) {
+    const existe = await GastosVariaveisRepository.findById(id);
     if (!existe) throw new AppError(`Gasto variável com ID ${id} não encontrado.`, 404);
 
     const statusAnterior = existe.situacao;
-    GastosVariaveisRepository.updateStatus(id, situacao);
+    await GastosVariaveisRepository.updateStatus(id, situacao);
 
     // ── Sincroniza valor_atual da meta vinculada ──────────────────────────────
     try {
-      const meta = MetasRepository.findByGastoVariavelId(id);
+      const meta = await MetasRepository.findByGastoVariavelId(id);
       if (meta) {
         const valor = existe.valor ?? 0;
         if (situacao === 'Pago' && statusAnterior !== 'Pago') {
           // Marcado como pago → contabiliza no arrecadado
-          MetasRepository.ajustarValorAtual(meta.id, valor);
+          await MetasRepository.ajustarValorAtual(meta.id, valor);
         } else if (situacao === 'Pendente' && statusAnterior === 'Pago') {
           // Revertido para pendente → desconta do arrecadado
-          MetasRepository.ajustarValorAtual(meta.id, -valor);
+          await MetasRepository.ajustarValorAtual(meta.id, -valor);
         }
       }
     } catch (err) {
@@ -135,37 +135,44 @@ const GastosVariaveisService = {
       console.error('[GastosVariaveisService] Erro ao sincronizar meta:', err.message);
     }
 
-    return GastosVariaveisRepository.findById(id);
+    return await GastosVariaveisRepository.findById(id);
   },
 
-  /**
-   * Remove um gasto variável.
-   * @param {number} id
-   */
-  remover(id) {
-    const existe = GastosVariaveisRepository.findById(id);
+  async remover(id) {
+    const existe = await GastosVariaveisRepository.findById(id);
     if (!existe) throw new AppError(`Gasto variável com ID ${id} não encontrado.`, 404);
 
-    GastosVariaveisRepository.delete(id);
+    // Se este gasto for a contribuição ativa de alguma meta, precisamos desativá-la
+    // para não deixar um gasto_variavel_id fantasma na tabela de metas.
+    try {
+      const meta = await MetasRepository.findByGastoVariavelId(id);
+      if (meta) {
+        await MetasRepository.desativarContribuicao(meta.id);
+      }
+    } catch (e) {
+      console.error('[GastosVariaveisService] Erro ao desvincular meta na exclusão:', e.message);
+    }
+
+    await GastosVariaveisRepository.delete(id);
   },
 
   /**
    * Remove todas as parcelas do mesmo grupo (grupo_id) de um gasto variável.
    * Se o registro não tiver grupo_id, remove apenas ele (comportamento igual ao remover).
-   * @param {number} id - ID de qualquer parcela do grupo
+   * @param {string} id - ID de qualquer parcela do grupo
    * @returns {{ removidos: number }}
    */
-  removerSerie(id) {
-    const existe = GastosVariaveisRepository.findById(id);
+  async removerSerie(id) {
+    const existe = await GastosVariaveisRepository.findById(id);
     if (!existe) throw new AppError(`Gasto variável com ID ${id} não encontrado.`, 404);
 
     if (!existe.grupo_id) {
       // Sem grupo — remove só este
-      GastosVariaveisRepository.delete(id);
+      await GastosVariaveisRepository.delete(id);
       return { removidos: 1 };
     }
 
-    const removidos = GastosVariaveisRepository.deleteByGrupoId(existe.grupo_id);
+    const removidos = await GastosVariaveisRepository.deleteByGrupoId(existe.grupo_id);
     return { removidos };
   },
 };

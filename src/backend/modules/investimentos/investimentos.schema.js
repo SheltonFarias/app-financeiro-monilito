@@ -13,6 +13,7 @@ const investimentoSchema = z.object({
   setor:            z.string().optional().nullable().default(null),
   dataCompra:       z.string().optional().nullable().default(null),
   rentabilidadeCdi: z.number().min(0).max(500).optional().nullable().default(null),
+  dividendoAnual:   z.number().min(0).optional().nullable().default(null), // R$/cota/ano — para cálculo do DY%
 }).superRefine((data, ctx) => {
   // rentabilidadeCdi é obrigatório para Renda Fixa e ignorado nos demais tipos
   if (data.tipo === 'Renda Fixa' && (data.rentabilidadeCdi === null || data.rentabilidadeCdi === undefined)) {

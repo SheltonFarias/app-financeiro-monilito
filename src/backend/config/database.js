@@ -1,35 +1,32 @@
 /**
- * database.js — Singleton de conexão com o banco de dados SQLite.
- * Importar este módulo sempre retorna a MESMA instância da conexão.
- * As migrations são executadas automaticamente ao inicializar.
+ * database.js — Singleton de conexão com o banco de dados via Prisma (PostgreSQL/Supabase).
+ * Prisma 7: usa driver adapter (@prisma/adapter-pg) em vez de conexão embutida no schema.
+ * O padrão com global.prisma evita múltiplas instâncias durante o hot-reload do Next.js.
  */
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
 
-const DB_PATH = path.resolve(process.cwd(), 'data/financeiro.db');
-
-// Garante que a pasta data/ existe
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
-
-/** @type {import('better-sqlite3').Database} */
-const db = new Database(DB_PATH);
-
-// Otimizações de performance do SQLite
-db.pragma('journal_mode = WAL');  // Write-Ahead Logging: melhor concorrência
-db.pragma('foreign_keys = ON');   // Força integridade referencial
-
-module.exports = { db };
-
-// Executa migrations pendentes automaticamente ao inicializar.
-// Usa setImmediate para evitar dependência circular: migrate.js importa database.js,
-// e database.js importa migrate.js — o setImmediate garante que module.exports já
-// foi registrado pelo Node.js antes de migrate.js tentar acessá-lo.
-setImmediate(() => {
-  try {
-    const { runMigrations } = require('../database/migrate');
-    runMigrations();
-  } catch (err) {
-    console.error('⚠️  Erro ao executar migrations automáticas:', err.message);
-  }
+// Pool de conexões PostgreSQL — conexão direta ao Supabase (sem pgBouncer)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
 });
+
+
+const adapter = new PrismaPg(pool);
+
+/** @type {import('@prisma/client').PrismaClient} */
+const prisma =
+  global.prisma ??
+  new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+  });
+
+// Em desenvolvimento, reutiliza a instância entre hot-reloads do Next.js
+if (process.env.NODE_ENV !== 'production') {
+  global.prisma = prisma;
+}
+
+module.exports = { prisma };
+

@@ -40,42 +40,42 @@ function getMesAtual() {
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 const MetasService = {
-  listar() {
-    return MetasRepository.findAll();
+  async listar() {
+    return await MetasRepository.findAll();
   },
 
-  criar(dadosRaw) {
+  async criar(dadosRaw) {
     const validacao = metaSchema.safeParse(dadosRaw);
     if (!validacao.success) {
       throw new AppError('Dados inválidos: ' + validacao.error.errors[0].message, 400);
     }
-    const { id } = MetasRepository.create(validacao.data);
-    return MetasRepository.findById(id);
+    const { id } = await MetasRepository.create(validacao.data);
+    return await MetasRepository.findById(id);
   },
 
-  atualizar(id, dadosRaw) {
+  async atualizar(id, dadosRaw) {
     const validacao = metaSchema.safeParse(dadosRaw);
     if (!validacao.success) {
       throw new AppError('Dados inválidos: ' + validacao.error.errors[0].message, 400);
     }
-    const meta = MetasRepository.findById(id);
+    const meta = await MetasRepository.findById(id);
     if (!meta) throw new AppError('Meta não encontrada', 404);
 
-    MetasRepository.update(id, validacao.data);
-    return MetasRepository.findById(id);
+    await MetasRepository.update(id, validacao.data);
+    return await MetasRepository.findById(id);
   },
 
-  deletar(id) {
-    const meta = MetasRepository.findById(id);
+  async deletar(id) {
+    const meta = await MetasRepository.findById(id);
     if (!meta) throw new AppError('Meta não encontrada', 404);
 
     // Se houver contribuição ativa, desvincula o gasto variável antes de deletar
     // para evitar violação de integridade referencial no SQLite (foreign_keys = ON)
-    if (meta.contribuicao_ativa === 1 && meta.gasto_variavel_id) {
-      MetasRepository.desativarContribuicao(id);
+    if (meta.contribuicao_ativa && meta.gasto_variavel_id) {
+      await MetasRepository.desativarContribuicao(id);
     }
 
-    MetasRepository.delete(id);
+    await MetasRepository.delete(id);
     return { id };
   },
 
@@ -86,14 +86,14 @@ const MetasService = {
    *
    * Fórmula: contribuição = (valor_alvo - valor_atual) / meses_restantes
    *
-   * @param {number} id - ID da meta
+   * @param {string} id - ID da meta
    * @param {string} [mesAtual] - Mês de referência no formato "Julho2026" (opcional, usa o atual)
    */
-  ativarContribuicao(id, mesAtual) {
-    const meta = MetasRepository.findById(id);
+  async ativarContribuicao(id, mesAtual) {
+    const meta = await MetasRepository.findById(id);
     if (!meta) throw new AppError('Meta não encontrada', 404);
 
-    if (meta.contribuicao_ativa === 1) {
+    if (meta.contribuicao_ativa) {
       throw new AppError('Contribuição já está ativa para esta meta.', 400);
     }
 
@@ -116,7 +116,7 @@ const MetasService = {
     const mes = mesAtual || getMesAtual();
 
     // Cria o gasto variável mensal recorrente
-    const { id: gastoId } = GastosVariaveisRepository.create({
+    const { id: gastoId } = await GastosVariaveisRepository.create({
       categoria:   'Outros',
       descricao:   `Meta: ${meta.titulo}`,
       valor:       contribuicaoMensal,
@@ -124,14 +124,14 @@ const MetasService = {
       qtd_parcelas: 1,
       situacao:    'Pendente',
       mes,
-      recorrente:  1,
+      recorrente:  true,
     });
 
     // Vincula à meta
-    MetasRepository.ativarContribuicao(id, gastoId);
+    await MetasRepository.ativarContribuicao(id, gastoId);
 
     return {
-      ...MetasRepository.findById(id),
+      ...(await MetasRepository.findById(id)),
       contribuicao_mensal: contribuicaoMensal,
       meses_restantes: mesesRestantes,
     };
@@ -140,15 +140,24 @@ const MetasService = {
   /**
    * Desativa a contribuição mensal de uma meta.
    * NÃO remove o gasto variável criado — apenas desfaz o vínculo.
-   * @param {number} id - ID da meta
+   * @param {string} id - ID da meta
    */
-  desativarContribuicao(id) {
-    const meta = MetasRepository.findById(id);
+  async desativarContribuicao(id) {
+    const meta = await MetasRepository.findById(id);
     if (!meta) throw new AppError('Meta não encontrada', 404);
 
-    MetasRepository.desativarContribuicao(id);
-    return MetasRepository.findById(id);
+    if (meta.gasto_variavel_id) {
+      try {
+        await GastosVariaveisRepository.delete(meta.gasto_variavel_id);
+      } catch (err) {
+        console.error('[MetasService] Erro ao deletar gasto_variavel_id:', err.message);
+      }
+    }
+
+    await MetasRepository.desativarContribuicao(id);
+    return await MetasRepository.findById(id);
   },
 };
 
 module.exports = { MetasService };
+

@@ -1,180 +1,146 @@
 /**
- * receitas.repository.js — Queries SQL do módulo Receitas.
+ * receitas.repository.js — Queries do módulo Receitas (Prisma/PostgreSQL).
+ * IDs são agora UUID (String).
  */
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 /**
  * @typedef {Object} Receita
- * @property {number} id
+ * @property {string} id
  * @property {string} categoria
  * @property {string} descricao
  * @property {number} valor
  * @property {string} situacao
  * @property {string|null} cartao
  * @property {string} mes
- * @property {number} recorrente      - legado (compatibilidade)
- * @property {number} mensal          - 1 = aparece em todos os meses (sem data_fim)
- * @property {string|null} data_inicio - Início da vigência (YYYY-MM-DD) ou null
- * @property {string|null} data_fim    - Fim da vigência (YYYY-MM-DD) ou null
- * @property {number|null} template_id - ID do template se for cópia auto-gerada, ou null
- * @property {string} created_at
- * @property {string} updated_at
+ * @property {boolean} recorrente
+ * @property {boolean} mensal
+ * @property {string|null} data_inicio
+ * @property {string|null} data_fim
+ * @property {string|null} template_id
  */
 
 const ReceitasRepository = {
-  /**
-   * Busca todas as receitas de um mês.
-   * @param {string} mes
-   * @returns {Receita[]}
-   */
-  findByMes(mes) {
-    return db
-      .prepare('SELECT * FROM receitas WHERE mes = ? ORDER BY id ASC')
-      .all(mes);
+  async findByMes(mes) {
+    return prisma.receita.findMany({
+      where:   { mes },
+      orderBy: { created_at: 'asc' },
+    });
   },
 
-  /**
-   * Busca todas as receitas (para evolução mensal).
-   * @returns {Receita[]}
-   */
-  findAll() {
-    return db
-      .prepare('SELECT * FROM receitas ORDER BY mes ASC, id ASC')
-      .all();
+  async findAll() {
+    return prisma.receita.findMany({
+      orderBy: [{ mes: 'asc' }, { created_at: 'asc' }],
+    });
   },
 
-  /**
-   * Busca uma receita pelo ID.
-   * @param {number} id
-   * @returns {Receita | undefined}
-   */
-  findById(id) {
-    return db
-      .prepare('SELECT * FROM receitas WHERE id = ?')
-      .get(id);
+  async findById(id) {
+    return prisma.receita.findUnique({ where: { id } }) ?? undefined;
   },
 
   /**
    * Busca templates de receitas recorrentes ativos em um determinado mês.
-   * Espelho de GastosFixosRepository.findTemplatesAtivos.
+   * Estratégia em 2 etapas (sem subquery correlacionada no Prisma).
    *
    * @param {string} primeiroDiaMes - "YYYY-MM-01"
-   * @param {string} ultimoDiaMes   - "YYYY-MM-DD" (último dia do mês)
-   * @param {string} mes            - "Julho2026" (para checar se cópia já existe)
-   * @returns {Receita[]}
+   * @param {string} ultimoDiaMes   - "YYYY-MM-DD"
+   * @param {string} mes            - "Julho2026"
    */
-  findTemplatesAtivos(primeiroDiaMes, ultimoDiaMes, mes) {
-    return db.prepare(`
-      SELECT * FROM receitas
-      WHERE template_id IS NULL
-        AND mes != ?
-        AND (
-          mensal = 1
-          OR (data_fim IS NOT NULL AND data_fim >= ?)
-        )
-        AND (data_inicio IS NULL OR data_inicio <= ?)
-        AND id NOT IN (
-          SELECT template_id FROM receitas
-          WHERE template_id IS NOT NULL
-            AND mes = ?
-        )
-      ORDER BY id ASC
-    `).all(mes, primeiroDiaMes, ultimoDiaMes, mes);
+  async findTemplatesAtivos(primeiroDiaMes, ultimoDiaMes, mes) {
+    const copias = await prisma.receita.findMany({
+      where:  { template_id: { not: null }, mes },
+      select: { template_id: true },
+    });
+    const idsJaCriados = copias.map(c => c.template_id).filter(Boolean);
+
+    return prisma.receita.findMany({
+      where: {
+        template_id: null,
+        mes:         { not: mes },
+        OR: [
+          { mensal: true },
+          { data_fim: { not: null, gte: primeiroDiaMes } },
+        ],
+        AND: [
+          { OR: [{ data_inicio: null }, { data_inicio: { lte: ultimoDiaMes } }] },
+        ],
+        ...(idsJaCriados.length > 0 ? { id: { notIn: idsJaCriados } } : {}),
+      },
+      orderBy: { created_at: 'asc' },
+    });
   },
 
   /**
-   * Verifica se já existe uma receita exatamente igual num determinado mês.
-   * Evita duplicidade ao propagar.
+   * Verifica se já existe receita igual num mês (evita duplicidade ao propagar).
    */
-  existeIgual(mes, categoria, descricao, cartao) {
-    const row = db.prepare(`
-      SELECT 1 FROM receitas
-      WHERE mes = ? AND categoria = ? AND descricao = ? AND cartao = ?
-        AND (recorrente = 1 OR mensal = 1 OR data_fim IS NOT NULL)
-      LIMIT 1
-    `).get(mes, categoria, descricao, cartao);
+  async existeIgual(mes, categoria, descricao, cartao) {
+    const row = await prisma.receita.findFirst({
+      where: {
+        mes,
+        categoria,
+        descricao,
+        cartao,
+        OR: [{ recorrente: true }, { mensal: true }, { data_fim: { not: null } }],
+      },
+    });
     return !!row;
   },
 
-  /**
-   * Insere uma nova receita.
-   * @param {Omit<Receita, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {{ id: number }}
-   */
-  create(dados) {
-    const stmt = db.prepare(`
-      INSERT INTO receitas (categoria, descricao, valor, situacao, cartao, mes, recorrente, mensal, data_inicio, data_fim, template_id)
-      VALUES (@categoria, @descricao, @valor, @situacao, @cartao, @mes, @recorrente, @mensal, @data_inicio, @data_fim, @template_id)
-    `);
-    const result = stmt.run({
-      ...dados,
-      recorrente:  dados.recorrente  ?? 0,
-      mensal:      dados.mensal      ?? 0,
-      data_inicio: dados.data_inicio ?? null,
-      data_fim:    dados.data_fim    ?? null,
-      template_id: dados.template_id ?? null,
+  async create(dados) {
+    const created = await prisma.receita.create({
+      data: {
+        categoria:   dados.categoria,
+        descricao:   dados.descricao,
+        valor:       dados.valor,
+        situacao:    dados.situacao    ?? 'Pendente',
+        cartao:      dados.cartao      ?? null,
+        mes:         dados.mes,
+        recorrente:  dados.recorrente == 1 || String(dados.recorrente) === '1' || dados.recorrente === true,
+        mensal:      dados.mensal == 1 || String(dados.mensal) === '1' || dados.mensal === true,
+        data_inicio: dados.data_inicio ?? null,
+        data_fim:    dados.data_fim    ?? null,
+        template_id: dados.template_id ?? null,
+      },
     });
-    return { id: result.lastInsertRowid };
+    return { id: created.id };
   },
 
-  /**
-   * Atualiza todos os campos de uma receita.
-   * @param {number} id
-   * @param {Omit<Receita, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {boolean}
-   */
-  update(id, dados) {
-    const result = db.prepare(`
-      UPDATE receitas
-      SET categoria = @categoria, descricao = @descricao, valor = @valor,
-          situacao = @situacao, cartao = @cartao, mes = @mes, recorrente = @recorrente,
-          mensal = @mensal, data_inicio = @data_inicio, data_fim = @data_fim
-      WHERE id = @id
-    `).run({
-      ...dados,
-      recorrente:  dados.recorrente  ?? 0,
-      mensal:      dados.mensal      ?? 0,
-      data_inicio: dados.data_inicio ?? null,
-      data_fim:    dados.data_fim    ?? null,
-      id,
+  async update(id, dados) {
+    const result = await prisma.receita.updateMany({
+      where: { id },
+      data: {
+        categoria:   dados.categoria,
+        descricao:   dados.descricao,
+        valor:       dados.valor,
+        situacao:    dados.situacao,
+        cartao:      dados.cartao      ?? null,
+        mes:         dados.mes,
+        recorrente:  dados.recorrente == 1 || String(dados.recorrente) === '1' || dados.recorrente === true,
+        mensal:      dados.mensal == 1 || String(dados.mensal) === '1' || dados.mensal === true,
+        data_inicio: dados.data_inicio ?? null,
+        data_fim:    dados.data_fim    ?? null,
+      },
     });
-    return result.changes > 0;
+    return result.count > 0;
   },
 
-  /**
-   * Atualiza apenas o campo situacao.
-   * @param {number} id
-   * @param {string} situacao
-   * @returns {boolean}
-   */
-  updateStatus(id, situacao) {
-    const result = db
-      .prepare('UPDATE receitas SET situacao = ? WHERE id = ?')
-      .run(situacao, id);
-    return result.changes > 0;
+  async updateStatus(id, situacao) {
+    const result = await prisma.receita.updateMany({
+      where: { id },
+      data:  { situacao },
+    });
+    return result.count > 0;
   },
 
-  /**
-   * Remove uma receita pelo ID.
-   * @param {number} id
-   * @returns {boolean}
-   */
-  delete(id) {
-    const result = db
-      .prepare('DELETE FROM receitas WHERE id = ?')
-      .run(id);
-    return result.changes > 0;
+  async delete(id) {
+    const result = await prisma.receita.deleteMany({ where: { id } });
+    return result.count > 0;
   },
 
-  /**
-   * Remove o template e todas as suas cópias auto-geradas.
-   * @param {number} templateId
-   * @returns {boolean}
-   */
-  deleteTemplate(templateId) {
-    db.prepare('DELETE FROM receitas WHERE template_id = ?').run(templateId);
-    const result = db.prepare('DELETE FROM receitas WHERE id = ?').run(templateId);
-    return result.changes > 0;
+  async deleteTemplate(templateId) {
+    await prisma.receita.deleteMany({ where: { template_id: templateId } });
+    const result = await prisma.receita.deleteMany({ where: { id: templateId } });
+    return result.count > 0;
   },
 };
 

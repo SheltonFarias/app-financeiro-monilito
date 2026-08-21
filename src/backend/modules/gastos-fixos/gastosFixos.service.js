@@ -52,10 +52,10 @@ const GastosFixosService = {
    * que estejam dentro da vigência e ainda não tenham entrada para o mês.
    *
    * @param {string} mes - Ex: "Junho2026"
-   * @returns {import('./gastosFixos.repository').GastoFixo[]}
+   * @returns {Promise<import('./gastosFixos.repository').GastoFixo[]>}
    * @throws {AppError} 400 se mes não for fornecido ou inválido
    */
-  listarPorMes(mes) {
+  async listarPorMes(mes) {
     if (!mes) throw new AppError('Parâmetro "mes" é obrigatório.', 400);
 
     const parsed = parseMes(mes);
@@ -64,9 +64,9 @@ const GastosFixosService = {
     const { primeiroDia, ultimoDia } = intervaloMes(parsed.ano, parsed.mesIdx);
 
     // Propaga recorrentes antes de buscar
-    this._propagarRecorrentes(mes, primeiroDia, ultimoDia);
+    await this._propagarRecorrentes(mes, primeiroDia, ultimoDia);
 
-    return GastosFixosRepository.findByMes(mes);
+    return await GastosFixosRepository.findByMes(mes);
   },
 
   /**
@@ -80,10 +80,10 @@ const GastosFixosService = {
    * @param {string} primeiroDia - "YYYY-MM-01"
    * @param {string} ultimoDia   - "YYYY-MM-DD"
    */
-  _propagarRecorrentes(mes, primeiroDia, ultimoDia) {
-    const templates = GastosFixosRepository.findTemplatesAtivos(primeiroDia, ultimoDia, mes);
+  async _propagarRecorrentes(mes, primeiroDia, ultimoDia) {
+    const templates = await GastosFixosRepository.findTemplatesAtivos(primeiroDia, ultimoDia, mes);
     for (const t of templates) {
-      GastosFixosRepository.create({
+      await GastosFixosRepository.create({
         categoria:   t.categoria,
         descricao:   t.descricao,
         valor:       t.valor,
@@ -102,41 +102,41 @@ const GastosFixosService = {
   /**
    * Cria um novo gasto fixo e retorna o registro criado completo.
    * @param {Object} dados - Dados validados pelo schema
-   * @returns {import('./gastosFixos.repository').GastoFixo}
+   * @returns {Promise<import('./gastosFixos.repository').GastoFixo>}
    */
-  criar(dados) {
-    const { id } = GastosFixosRepository.create(dados);
-    return GastosFixosRepository.findById(id);
+  async criar(dados) {
+    const { id } = await GastosFixosRepository.create(dados);
+    return await GastosFixosRepository.findById(id);
   },
 
   /**
    * Atualiza todos os campos de um gasto fixo existente.
-   * @param {number} id
+   * @param {string} id
    * @param {Object} dados - Dados validados pelo schema
-   * @returns {import('./gastosFixos.repository').GastoFixo}
+   * @returns {Promise<import('./gastosFixos.repository').GastoFixo>}
    * @throws {AppError} 404 se o registro não existir
    */
-  atualizar(id, dados) {
-    const existe = GastosFixosRepository.findById(id);
+  async atualizar(id, dados) {
+    const existe = await GastosFixosRepository.findById(id);
     if (!existe) throw new AppError(`Gasto fixo com ID ${id} não encontrado.`, 404);
 
-    GastosFixosRepository.update(id, dados);
-    return GastosFixosRepository.findById(id);
+    await GastosFixosRepository.update(id, dados);
+    return await GastosFixosRepository.findById(id);
   },
 
   /**
    * Atualiza apenas o campo situacao de um gasto fixo.
-   * @param {number} id
+   * @param {string} id
    * @param {string} situacao - "Pendente" | "Pago"
-   * @returns {import('./gastosFixos.repository').GastoFixo}
+   * @returns {Promise<import('./gastosFixos.repository').GastoFixo>}
    * @throws {AppError} 404 se o registro não existir
    */
-  atualizarStatus(id, situacao) {
-    const existe = GastosFixosRepository.findById(id);
+  async atualizarStatus(id, situacao) {
+    const existe = await GastosFixosRepository.findById(id);
     if (!existe) throw new AppError(`Gasto fixo com ID ${id} não encontrado.`, 404);
 
-    GastosFixosRepository.updateStatus(id, situacao);
-    return GastosFixosRepository.findById(id);
+    await GastosFixosRepository.updateStatus(id, situacao);
+    return await GastosFixosRepository.findById(id);
   },
 
   /**
@@ -144,29 +144,29 @@ const GastosFixosService = {
    * Se o registro for um template com cópias, remove apenas este registro
    * (as cópias futuras não serão mais geradas pois o template não existirá).
    * Para excluir TODA A SÉRIE, use removerSerie().
-   * @param {number} id
+   * @param {string} id
    * @throws {AppError} 404 se o registro não existir
    */
-  remover(id) {
-    const existe = GastosFixosRepository.findById(id);
+  async remover(id) {
+    const existe = await GastosFixosRepository.findById(id);
     if (!existe) throw new AppError(`Gasto fixo com ID ${id} não encontrado.`, 404);
 
-    GastosFixosRepository.delete(id);
+    await GastosFixosRepository.delete(id);
   },
 
   /**
    * Remove o template de recorrência E todas as cópias auto-geradas.
    * Use quando o usuário quer "excluir toda a série".
-   * @param {number} id - ID do template (ou de qualquer cópia — resolve o template automaticamente)
+   * @param {string} id - ID do template (ou de qualquer cópia — resolve o template automaticamente)
    * @throws {AppError} 404 se não encontrar
    */
-  removerSerie(id) {
-    const registro = GastosFixosRepository.findById(id);
+  async removerSerie(id) {
+    const registro = await GastosFixosRepository.findById(id);
     if (!registro) throw new AppError(`Gasto fixo com ID ${id} não encontrado.`, 404);
 
     // Resolve o template_id: se é uma cópia, sobe para o template raiz
     const templateId = registro.template_id ?? registro.id;
-    GastosFixosRepository.deleteTemplate(templateId);
+    await GastosFixosRepository.deleteTemplate(templateId);
   },
 };
 

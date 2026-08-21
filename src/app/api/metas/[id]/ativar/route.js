@@ -9,16 +9,15 @@ import { withAuth } from '@/backend/middlewares/next-auth';
  */
 export const POST = withAuth(async (req, { params }) => {
   try {
-    const { id: idParam } = await params;
-    const id = parseInt(idParam, 10);
-    if (isNaN(id)) {
+    const { id } = await params;
+    if (!id) {
       return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
     }
 
     const body = await req.json().catch(() => ({}));
     const mesAtual = body.mesAtual || null;
 
-    const data = MetasService.ativarContribuicao(id, mesAtual);
+    const data = await MetasService.ativarContribuicao(id, mesAtual);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
     console.error('Erro POST /api/metas/:id/ativar:', error);
@@ -35,13 +34,12 @@ export const POST = withAuth(async (req, { params }) => {
  */
 export const DELETE = withAuth(async (req, { params }) => {
   try {
-    const { id: idParam } = await params;
-    const id = parseInt(idParam, 10);
-    if (isNaN(id)) {
+    const { id } = await params;
+    if (!id) {
       return NextResponse.json({ success: false, error: 'ID inválido' }, { status: 400 });
     }
 
-    const data = MetasService.desativarContribuicao(id);
+    const data = await MetasService.desativarContribuicao(id);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error) {
     console.error('Erro DELETE /api/metas/:id/ativar:', error);

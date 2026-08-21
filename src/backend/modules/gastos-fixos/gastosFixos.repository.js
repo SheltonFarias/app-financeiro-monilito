@@ -1,13 +1,12 @@
 /**
- * gastosFixos.repository.js — Queries SQL do módulo Gastos Fixos.
- * Responsável APENAS pelas operações no banco de dados.
- * Nunca lança exceções de negócio — retorna undefined quando não encontra.
+ * gastosFixos.repository.js — Queries do módulo Gastos Fixos (Prisma/PostgreSQL).
+ * IDs são agora UUID (String).
  */
-const { db } = require('../../config/database');
+const { prisma } = require('../../config/database');
 
 /**
  * @typedef {Object} GastoFixo
- * @property {number} id
+ * @property {string} id
  * @property {string} categoria
  * @property {string} descricao
  * @property {number} valor
@@ -15,164 +14,125 @@ const { db } = require('../../config/database');
  * @property {string|null} cartao
  * @property {string} situacao
  * @property {string} mes
- * @property {string|null} data_inicio  - Início da vigência (YYYY-MM-DD) ou null
- * @property {string|null} data_fim     - Fim da vigência (YYYY-MM-DD) ou null
- * @property {number}      mensal       - 1 = aparece em todos os meses, 0 = avulso/com data_fim
- * @property {number|null} template_id  - ID do template se for cópia auto-gerada, ou null
- * @property {string} created_at
- * @property {string} updated_at
+ * @property {boolean} mensal
+ * @property {string|null} data_inicio
+ * @property {string|null} data_fim
+ * @property {string|null} template_id
  */
 
 const GastosFixosRepository = {
-  /**
-   * Busca todos os gastos fixos de um mês específico.
-   * Inclui registros avulsos (template_id IS NULL e sem recorrência) e
-   * cópias auto-geradas para o mês (template_id NOT NULL).
-   * @param {string} mes - Ex: "Junho2026"
-   * @returns {GastoFixo[]}
-   */
-  findByMes(mes) {
-    return db
-      .prepare('SELECT * FROM gastos_fixos WHERE mes = ? ORDER BY id ASC')
-      .all(mes);
+  async findByMes(mes) {
+    return prisma.gastoFixo.findMany({
+      where:   { mes },
+      orderBy: { created_at: 'asc' },
+    });
   },
 
-  /**
-   * Busca todos os gastos fixos de todos os meses (para evolução mensal).
-   * @returns {GastoFixo[]}
-   */
-  findAll() {
-    return db
-      .prepare('SELECT * FROM gastos_fixos ORDER BY mes ASC, id ASC')
-      .all();
+  async findAll() {
+    return prisma.gastoFixo.findMany({
+      orderBy: [{ mes: 'asc' }, { created_at: 'asc' }],
+    });
   },
 
-  /**
-   * Busca um gasto fixo pelo ID.
-   * @param {number} id
-   * @returns {GastoFixo | undefined}
-   */
-  findById(id) {
-    return db
-      .prepare('SELECT * FROM gastos_fixos WHERE id = ?')
-      .get(id);
+  async findById(id) {
+    return prisma.gastoFixo.findUnique({ where: { id } }) ?? undefined;
   },
 
   /**
    * Busca templates de gastos recorrentes ativos em um determinado mês.
-   * Captura dois cenários:
-   *   1) mensal = 1  → propaga para todos os meses (sem data_fim)
-   *   2) data_fim IS NOT NULL E data_fim >= primeiroDiaMes → propaga até aquela data
-   *
-   * Filtros comuns:
-   *   - template_id IS NULL (é o template raiz, não uma cópia)
-   *   - data_inicio IS NULL OR data_inicio <= ultimoDiaMes (já começou)
-   *   - NÃO existe cópia para o mesmo template_id + mes
+   * Estratégia em 2 etapas (sem subquery correlacionada):
+   *   1. Busca IDs de templates que já têm cópia para o mês alvo.
+   *   2. Busca templates que ainda não têm cópia para o mês.
    *
    * @param {string} primeiroDiaMes - "YYYY-MM-01"
-   * @param {string} ultimoDiaMes   - "YYYY-MM-DD" (último dia do mês)
-   * @param {string} mes            - "Julho2026" (para checar se cópia já existe)
-   * @returns {GastoFixo[]}
+   * @param {string} ultimoDiaMes   - "YYYY-MM-DD"
+   * @param {string} mes            - "Julho2026"
    */
-  findTemplatesAtivos(primeiroDiaMes, ultimoDiaMes, mes) {
-    return db.prepare(`
-      SELECT * FROM gastos_fixos
-      WHERE template_id IS NULL
-        AND mes != ?
-        AND (
-          mensal = 1
-          OR (data_fim IS NOT NULL AND data_fim >= ?)
-        )
-        AND (data_inicio IS NULL OR data_inicio <= ?)
-        AND id NOT IN (
-          SELECT template_id FROM gastos_fixos
-          WHERE template_id IS NOT NULL
-            AND mes = ?
-        )
-      ORDER BY id ASC
-    `).all(mes, primeiroDiaMes, ultimoDiaMes, mes);
-  },
-
-  /**
-   * Insere um novo gasto fixo.
-   * @param {Omit<GastoFixo, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {{ id: number }}
-   */
-  create(dados) {
-    const stmt = db.prepare(`
-      INSERT INTO gastos_fixos (categoria, descricao, valor, vencimento, cartao, situacao, mes, mensal, data_inicio, data_fim, template_id)
-      VALUES (@categoria, @descricao, @valor, @vencimento, @cartao, @situacao, @mes, @mensal, @data_inicio, @data_fim, @template_id)
-    `);
-    const result = stmt.run({
-      ...dados,
-      mensal:      dados.mensal      ?? 0,
-      data_inicio: dados.data_inicio ?? null,
-      data_fim:    dados.data_fim    ?? null,
-      template_id: dados.template_id ?? null,
+  async findTemplatesAtivos(primeiroDiaMes, ultimoDiaMes, mes) {
+    // IDs de templates que já têm cópia no mês alvo
+    const copias = await prisma.gastoFixo.findMany({
+      where:  { template_id: { not: null }, mes },
+      select: { template_id: true },
     });
-    return { id: result.lastInsertRowid };
-  },
+    const idsJaCriados = copias.map(c => c.template_id).filter(Boolean);
 
-  /**
-   * Atualiza todos os campos de um gasto fixo por ID.
-   * @param {number} id
-   * @param {Omit<GastoFixo, 'id'|'created_at'|'updated_at'>} dados
-   * @returns {boolean} true se atualizou, false se não encontrou
-   */
-  update(id, dados) {
-    const result = db.prepare(`
-      UPDATE gastos_fixos
-      SET categoria = @categoria, descricao = @descricao, valor = @valor,
-          vencimento = @vencimento, cartao = @cartao, situacao = @situacao, mes = @mes,
-          mensal = @mensal, data_inicio = @data_inicio, data_fim = @data_fim
-      WHERE id = @id
-    `).run({
-      ...dados,
-      mensal:      dados.mensal      ?? 0,
-      data_inicio: dados.data_inicio ?? null,
-      data_fim:    dados.data_fim    ?? null,
-      id,
+    return prisma.gastoFixo.findMany({
+      where: {
+        template_id: null,
+        mes:         { not: mes },
+        OR: [
+          { mensal: true },
+          { data_fim: { not: null, gte: primeiroDiaMes } },
+        ],
+        AND: [
+          { OR: [{ data_inicio: null }, { data_inicio: { lte: ultimoDiaMes } }] },
+        ],
+        ...(idsJaCriados.length > 0 ? { id: { notIn: idsJaCriados } } : {}),
+      },
+      orderBy: { created_at: 'asc' },
     });
-    return result.changes > 0;
+  },
+
+  async create(dados) {
+    const created = await prisma.gastoFixo.create({
+      data: {
+        categoria:   dados.categoria,
+        descricao:   dados.descricao,
+        valor:       dados.valor,
+        vencimento:  dados.vencimento  ?? null,
+        cartao:      dados.cartao      ?? null,
+        situacao:    dados.situacao    ?? 'Pendente',
+        mes:         dados.mes,
+        mensal:      dados.mensal == 1 || String(dados.mensal) === '1' || dados.mensal === true,
+        data_inicio: dados.data_inicio ?? null,
+        data_fim:    dados.data_fim    ?? null,
+        template_id: dados.template_id ?? null,
+      },
+    });
+    return { id: created.id };
+  },
+
+  async update(id, dados) {
+    const result = await prisma.gastoFixo.updateMany({
+      where: { id },
+      data: {
+        categoria:   dados.categoria,
+        descricao:   dados.descricao,
+        valor:       dados.valor,
+        vencimento:  dados.vencimento  ?? null,
+        cartao:      dados.cartao      ?? null,
+        situacao:    dados.situacao,
+        mes:         dados.mes,
+        mensal:      dados.mensal == 1 || String(dados.mensal) === '1' || dados.mensal === true,
+        data_inicio: dados.data_inicio ?? null,
+        data_fim:    dados.data_fim    ?? null,
+      },
+    });
+    return result.count > 0;
+  },
+
+  async updateStatus(id, situacao) {
+    const result = await prisma.gastoFixo.updateMany({
+      where: { id },
+      data:  { situacao },
+    });
+    return result.count > 0;
+  },
+
+  async delete(id) {
+    const result = await prisma.gastoFixo.deleteMany({ where: { id } });
+    return result.count > 0;
   },
 
   /**
-   * Atualiza apenas o campo situacao de um gasto fixo.
-   * @param {number} id
-   * @param {string} situacao
-   * @returns {boolean}
+   * Remove o template e todas as suas cópias (ON DELETE CASCADE no schema).
+   * @param {string} templateId
    */
-  updateStatus(id, situacao) {
-    const result = db
-      .prepare('UPDATE gastos_fixos SET situacao = ? WHERE id = ?')
-      .run(situacao, id);
-    return result.changes > 0;
-  },
-
-  /**
-   * Remove um gasto fixo pelo ID.
-   * @param {number} id
-   * @returns {boolean}
-   */
-  delete(id) {
-    const result = db
-      .prepare('DELETE FROM gastos_fixos WHERE id = ?')
-      .run(id);
-    return result.changes > 0;
-  },
-
-  /**
-   * Remove o template e todas as suas cópias auto-geradas (cascade via FK no banco).
-   * Use quando o usuário quer "excluir toda a série".
-   * @param {number} templateId
-   * @returns {boolean}
-   */
-  deleteTemplate(templateId) {
-    // O CASCADE do banco já remove as cópias (template_id FK),
-    // mas vamos apagar explicitamente para garantir.
-    db.prepare('DELETE FROM gastos_fixos WHERE template_id = ?').run(templateId);
-    const result = db.prepare('DELETE FROM gastos_fixos WHERE id = ?').run(templateId);
-    return result.changes > 0;
+  async deleteTemplate(templateId) {
+    // O CASCADE do schema já remove as cópias, mas garantimos explicitamente
+    await prisma.gastoFixo.deleteMany({ where: { template_id: templateId } });
+    const result = await prisma.gastoFixo.deleteMany({ where: { id: templateId } });
+    return result.count > 0;
   },
 };
 

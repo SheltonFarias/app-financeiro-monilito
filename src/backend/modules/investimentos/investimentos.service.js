@@ -7,10 +7,10 @@ const { AppError } = require('../../utils/AppError');
 const InvestimentosService = {
   /**
    * Lista todos os investimentos.
-   * @returns {import('./investimentos.repository').Investimento[]}
+   * @returns {Promise<import('./investimentos.repository').Investimento[]>}
    */
-  listar() {
-    return InvestimentosRepository.findAll();
+  async listar() {
+    return await InvestimentosRepository.findAll();
   },
 
   /**
@@ -19,8 +19,8 @@ const InvestimentosService = {
    * @param {Object} dados - Dados validados pelo schema
    * @throws {AppError} 409 se o ticker já existir
    */
-  criar(dados) {
-    const jaExiste = InvestimentosRepository.findByTicker(dados.ticker);
+  async criar(dados) {
+    const jaExiste = await InvestimentosRepository.findByTicker(dados.ticker);
     if (jaExiste) {
       throw new AppError(`Investimento com ticker "${dados.ticker}" já existe. Use PUT para editar.`, 409);
     }
@@ -33,24 +33,25 @@ const InvestimentosService = {
       setor:            dados.setor || null,
       data_compra:      dados.dataCompra || null,
       rentabilidade_cdi: dados.rentabilidadeCdi ?? null,
+      dividendo_anual:  dados.dividendoAnual ?? null,
     };
 
-    const { id } = InvestimentosRepository.create(dbDados);
-    return InvestimentosRepository.findById(id);
+    const { id } = await InvestimentosRepository.create(dbDados);
+    return await InvestimentosRepository.findById(id);
   },
 
   /**
    * Atualiza um investimento existente.
-   * @param {number} id
+   * @param {string} id
    * @param {Object} dados
    */
-  atualizar(id, dados) {
-    const existe = InvestimentosRepository.findById(id);
+  async atualizar(id, dados) {
+    const existe = await InvestimentosRepository.findById(id);
     if (!existe) throw new AppError(`Investimento com ID ${id} não encontrado.`, 404);
 
     // Verifica conflito de ticker (caso o ticker esteja sendo alterado)
     if (dados.ticker !== existe.ticker) {
-      const tickerEmUso = InvestimentosRepository.findByTicker(dados.ticker);
+      const tickerEmUso = await InvestimentosRepository.findByTicker(dados.ticker);
       if (tickerEmUso) {
         throw new AppError(`Ticker "${dados.ticker}" já está em uso por outro investimento.`, 409);
       }
@@ -64,21 +65,22 @@ const InvestimentosService = {
       setor:            dados.setor || null,
       data_compra:      dados.dataCompra || null,
       rentabilidade_cdi: dados.rentabilidadeCdi ?? null,
+      dividendo_anual:  dados.dividendoAnual ?? null,
     };
 
-    InvestimentosRepository.update(id, dbDados);
-    return InvestimentosRepository.findById(id);
+    await InvestimentosRepository.update(id, dbDados);
+    return await InvestimentosRepository.findById(id);
   },
 
   /**
    * Remove um investimento.
-   * @param {number} id
+   * @param {string} id
    */
-  remover(id) {
-    const existe = InvestimentosRepository.findById(id);
+  async remover(id) {
+    const existe = await InvestimentosRepository.findById(id);
     if (!existe) throw new AppError(`Investimento com ID ${id} não encontrado.`, 404);
 
-    InvestimentosRepository.delete(id);
+    await InvestimentosRepository.delete(id);
   },
 };
 

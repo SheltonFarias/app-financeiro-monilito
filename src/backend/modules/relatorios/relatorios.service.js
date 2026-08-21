@@ -48,20 +48,25 @@ const RelatoriosService = {
    * @param {string} mesAtual
    * @param {number} [numMeses=11] — total de meses futuros (padrão: 11 = atual + 11 = 12 meses)
    */
-  gerarProjecao(mesAtual, numMeses = 11) {
+  async gerarProjecao(mesAtual, numMeses = 11) {
     const periodos = getNextMonths(mesAtual, numMeses);
     
     let saldoSimulado = 0;
     
+    const recList = await ReceitasRepository.findByMes(mesAtual);
+    const varList = await GastosVariaveisRepository.findByMes(mesAtual);
+    const fixList = await GastosFixosRepository.findByMes(mesAtual);
+    
     // Calcula o saldo real/base do mes atual primeiro
-    const recAtual = ReceitasRepository.findByMes(mesAtual).reduce((s, r) => s + r.valor, 0);
-    const varAtual = GastosVariaveisRepository.findByMes(mesAtual).reduce((s, r) => s + r.valor, 0);
-    const fixAtual = GastosFixosRepository.findByMes(mesAtual).reduce((s, r) => s + r.valor, 0);
+    const recAtual = recList.reduce((s, r) => s + r.valor, 0);
+    const varAtual = varList.reduce((s, r) => s + r.valor, 0);
+    const fixAtual = fixList.reduce((s, r) => s + r.valor, 0);
     saldoSimulado = recAtual - (varAtual + fixAtual);
     
-    const recorrentes    = GastosVariaveisRepository.findByMes(mesAtual).filter(g => g.recorrente === 1).reduce((s, r) => s + r.valor, 0);
-    const fixosRec       = GastosFixosRepository.findByMes(mesAtual).reduce((s, r) => s + r.valor, 0);
-    const receitasRec    = ReceitasRepository.findByMes(mesAtual).reduce((s, r) => s + r.valor, 0);
+    // Considera "recorrente" o que se propaga mensalmente (compatível com o modelo atual)
+    const recorrentes    = varList.filter(g => g.recorrente).reduce((s, r) => s + r.valor, 0);
+    const fixosRec       = fixAtual; 
+    const receitasRec    = recAtual; 
     
     const projecao = [];
     projecao.push({ mes: mesAtual, saldo: saldoSimulado, tipo: 'real' });
@@ -77,9 +82,9 @@ const RelatoriosService = {
   /**
    * Retorna agrupamento por categorias, focado em pizza chart.
    */
-  agruparPorCategoria(mes) {
-    const varAtual = GastosVariaveisRepository.findByMes(mes);
-    const fixAtual = GastosFixosRepository.findByMes(mes);
+  async agruparPorCategoria(mes) {
+    const varAtual = await GastosVariaveisRepository.findByMes(mes);
+    const fixAtual = await GastosFixosRepository.findByMes(mes);
     
     const map = {};
     for (const g of varAtual) {
@@ -97,10 +102,10 @@ const RelatoriosService = {
    * Cada entrada contém: mes, receita, gastos_fixos, gastos_variaveis, gastos_totais, saldo.
    * Ordenado cronologicamente.
    */
-  historicoConsolidado() {
-    const todasReceitas = ReceitasRepository.findAll();
-    const todosFixos    = GastosFixosRepository.findAll();
-    const todosVariaveis = GastosVariaveisRepository.findAll();
+  async historicoConsolidado() {
+    const todasReceitas = await ReceitasRepository.findAll();
+    const todosFixos    = await GastosFixosRepository.findAll();
+    const todosVariaveis = await GastosVariaveisRepository.findAll();
 
     // Coleta todos os meses distintos
     const mesesSet = new Set([
@@ -131,19 +136,23 @@ const RelatoriosService = {
    * @param {string} mes1
    * @param {string} mes2
    */
-  compararMeses(mes1, mes2) {
-    const buildResumo = (mes) => {
-      const receita          = ReceitasRepository.findByMes(mes).reduce((s, r) => s + r.valor, 0);
-      const gastos_fixos     = GastosFixosRepository.findByMes(mes).reduce((s, g) => s + g.valor, 0);
-      const gastos_variaveis = GastosVariaveisRepository.findByMes(mes).reduce((s, g) => s + g.valor, 0);
+  async compararMeses(mes1, mes2) {
+    const buildResumo = async (mes) => {
+      const recList = await ReceitasRepository.findByMes(mes);
+      const fixList = await GastosFixosRepository.findByMes(mes);
+      const varList = await GastosVariaveisRepository.findByMes(mes);
+
+      const receita          = recList.reduce((s, r) => s + r.valor, 0);
+      const gastos_fixos     = fixList.reduce((s, g) => s + g.valor, 0);
+      const gastos_variaveis = varList.reduce((s, g) => s + g.valor, 0);
       const gastos_totais    = gastos_fixos + gastos_variaveis;
       const saldo            = receita - gastos_totais;
       return { mes, receita, gastos_fixos, gastos_variaveis, gastos_totais, saldo };
     };
 
     return {
-      mes1: buildResumo(mes1),
-      mes2: buildResumo(mes2),
+      mes1: await buildResumo(mes1),
+      mes2: await buildResumo(mes2),
     };
   },
 };
