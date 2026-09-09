@@ -97,6 +97,9 @@ const GastosVariaveisService = {
     delete dbDados.qtd_parcelas;
     delete dbDados.subcategoria;
     delete dbDados.tags;
+    // template_id e grupo_id são gerenciados pelo sistema — nunca sobrescrever via edição manual
+    delete dbDados.template_id;
+    delete dbDados.grupo_id;
 
     await GastosVariaveisRepository.update(id, dbDados);
     return await GastosVariaveisRepository.findById(id);

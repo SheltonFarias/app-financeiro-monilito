@@ -120,7 +120,10 @@ const GastosFixosService = {
     const existe = await GastosFixosRepository.findById(id);
     if (!existe) throw new AppError(`Gasto fixo com ID ${id} não encontrado.`, 404);
 
-    await GastosFixosRepository.update(id, dados);
+    // template_id é gerenciado pelo sistema — nunca sobrescrever via edição manual
+    const { template_id, ...dbDados } = dados;
+
+    await GastosFixosRepository.update(id, dbDados);
     return await GastosFixosRepository.findById(id);
   },
 

@@ -21,7 +21,8 @@ const receitaSchema = z.object({
   mensal:      z.number().int().min(0).max(1).optional().default(0),
   data_inicio: z.string().regex(dataRegex, 'data_inicio deve ser YYYY-MM-DD').nullable().optional().default(null),
   data_fim:    z.string().regex(dataRegex, 'data_fim deve ser YYYY-MM-DD').nullable().optional().default(null),
-  template_id: z.number().int().positive().nullable().optional().default(null),
+  // template_id pode vir do banco como number ou string — coerce garante compatibilidade
+  template_id: z.coerce.number().int().positive().nullable().optional().default(null),
 });
 
 const updateStatusSchema = z.object({

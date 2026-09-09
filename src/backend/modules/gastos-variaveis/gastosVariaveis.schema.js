@@ -18,6 +18,9 @@ const gastoVariavelSchema = z.object({
   situacao:    z.enum(SITUACOES).optional().default('Pendente'),
   mes:         z.string().regex(/^[A-Za-zÀ-ú]+\d{4}$/, 'Mês deve estar no formato "Junho2026"'),
   qtd_parcelas: z.number().int().min(1).optional().default(1),
+  // template_id pode vir do banco como number ou string — coerce garante compatibilidade
+  template_id: z.coerce.number().int().positive().nullable().optional().default(null),
+  grupo_id:    z.string().nullable().optional().default(null),
 });
 
 /** Schema para atualização de situação */

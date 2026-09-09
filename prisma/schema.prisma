@@ -195,3 +195,96 @@ model ControleRequisicao {
 
   @@map("controle_requisicoes")
 }
+
+// ─── Módulo de Amortização ─────────────────────────────────────────────────
+
+model Financiamento {
+  id                    String   @id @default(uuid())
+  descricao             String
+  banco                 String
+  agencia               String?
+  numero_contrato       String?
+  programa              String?
+
+  // Composição financeira
+  valor_imovel          Float
+  valor_financiado      Float
+  recursos_proprios     Float    @default(0)
+  desconto_fgts         Float    @default(0)
+
+  // Taxas e sistema
+  taxa_juros_nominal_anual Float
+  taxa_efetiva_anual    Float?
+  sistema_amort         String   @default("PRICE")
+  indice_correcao       String   @default("TR")
+
+  // Prazo
+  prazo_meses           Int
+  data_inicio           DateTime
+  parcela_atual         Int      @default(1)
+
+  // Encargos contratuais
+  prestacao_inicial_aj  Float
+  seguro_mensal         Float    @default(0)
+  total_mensal_inicial  Float
+  tarifa_administracao  Float    @default(0)
+  garantia_fiduciaria   Float?
+
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  parcelas_pagas        ParcelaPaga[]
+  amortizacoes_extras   AmortizacaoExtra[]
+  indices_cache         IndiceBCBCache[]
+
+  @@map("financiamentos")
+}
+
+model ParcelaPaga {
+  id                  String        @id @default(uuid())
+  financiamento_id    String
+  numero_parcela      Int
+  data_vencimento     DateTime
+  data_pagamento_real DateTime?
+  valor_pago          Float
+  seguro_pago         Float?
+  observacao          String?
+
+  financiamento       Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([financiamento_id, numero_parcela])
+  @@map("parcelas_pagas")
+}
+
+model AmortizacaoExtra {
+  id                  String        @id @default(uuid())
+  financiamento_id    String
+  data_pagamento      DateTime
+  valor               Float
+  modalidade          String        // REDUZ_PRAZO | REDUZ_PRESTACAO
+  parcela_referencia  Int?
+  economia_juros      Float?
+  meses_economizados  Int?
+  novo_saldo_devedor  Float?
+  observacao          String?
+
+  financiamento       Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@index([financiamento_id])
+  @@map("amortizacoes_extras")
+}
+
+model IndiceBCBCache {
+  id               String        @id @default(uuid())
+  financiamento_id String
+  serie            Int           // 226 = TR, 433 = IPCA
+  competencia      String        // "YYYY-MM"
+  valor            Float
+  criado_em        DateTime      @default(now())
+
+  financiamento    Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([financiamento_id, serie, competencia])
+  @@index([financiamento_id, serie])
+  @@map("indices_bcb_cache")
+}

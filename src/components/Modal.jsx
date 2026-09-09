@@ -177,16 +177,33 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
       processed.mes = mesAtual;
     }
 
+    // ── Sanitização do payload ────────────────────────────────────────────────
+    // Remove campos extras vindos do banco (id, template_id, grupo_id, parcela,
+    // data_compra, etc.) que não pertencem ao schema de cada tipo.
+    // Mantém apenas: chaves do formulário + campos de sistema permitidos.
+    const CAMPOS_SISTEMA = new Set([
+      "mes", "mensal", "recorrente", "data_inicio", "data_fim",
+      "valor_alvo", "valor_atual", "qtd_parcelas",
+      "rentabilidadeCdi", "dividendoAnual", "dataCompra",
+      "limite_total", "dia_fechamento", "dia_vencimento",
+    ]);
+    const camposFormulario = new Set(fields.map(f => f.key));
+    const payload = {};
+    for (const [k, v] of Object.entries(processed)) {
+      if (camposFormulario.has(k) || CAMPOS_SISTEMA.has(k)) {
+        payload[k] = v;
+      }
+    }
 
     try {
       if (initialData) {
-        await editRow(ABA_MAP[tipo], { id: initialData.id }, processed);
+        await editRow(ABA_MAP[tipo], { id: initialData.id }, payload);
         toast.success(`${tipo} editado com sucesso!`);
       } else {
-        await addRow(ABA_MAP[tipo], processed);
+        await addRow(ABA_MAP[tipo], payload);
         toast.success(`${tipo} salvo com sucesso!`);
       }
-      onSave(processed);
+      onSave(payload);
       onClose();
     } catch (err) {
       toast.error("Erro ao salvar: " + err.message);
