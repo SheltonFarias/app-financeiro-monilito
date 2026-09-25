@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Financeiro",
+    "slug": "financeiro-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "financeiro",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": { "typedRoutes": true }
+  }
+}

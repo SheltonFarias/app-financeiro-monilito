@@ -1,0 +1,5 @@
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "@/providers/AuthProvider";
+export default function AjustesScreen() { const { logout } = useAuth(); const router = useRouter(); const sair = async () => { await logout(); router.replace("/login"); }; return <View style={styles.page}><Text style={styles.title}>Ajustes</Text><Text style={styles.text}>A sessão é armazenada com segurança neste dispositivo.</Text><Pressable onPress={() => Alert.alert("Sair", "Deseja encerrar a sessão?", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: sair }])} style={styles.button}><Text style={styles.buttonText}>Sair da conta</Text></Pressable></View>; }
+const styles = StyleSheet.create({ page: { flex: 1, backgroundColor: "#101827", padding: 20 }, title: { color: "#f8fafc", fontSize: 26, fontWeight: "700" }, text: { color: "#94a3b8", marginTop: 10 }, button: { marginTop: 28, backgroundColor: "#3f1d2e", padding: 14, borderRadius: 12, alignItems: "center" }, buttonText: { color: "#fda4af", fontWeight: "700" } });
