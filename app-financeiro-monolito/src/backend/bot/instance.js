@@ -10,3 +10,7 @@ bot.use(async (ctx, next) => {
   const ms = new Date() - start;
   console.log('[Telegram Bot] Respondeu em %sms', ms);
 });
+
+bot.catch((error) => {
+  console.error('[Telegram Bot] Erro ao processar atualização:', error.message);
+});

@@ -26,6 +26,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@next/swc-wasm-nodejs": "^16.2.9",
     "@types/pg": "^8.23.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",

@@ -11,11 +11,13 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 export default async function proxy(request) {
   const { pathname } = request.nextUrl;
 
-  // Protege apenas rotas da API (exceto /api/auth e /api/health)
+  // Protege rotas da API, exceto endpoints que possuem autenticação própria.
+  // O webhook do Telegram valida X-Telegram-Bot-Api-Secret-Token na própria rota.
   if (
     pathname.startsWith('/api') &&
     !pathname.startsWith('/api/auth') &&
-    !pathname.startsWith('/api/health')
+    !pathname.startsWith('/api/health') &&
+    !pathname.startsWith('/api/bot/webhook')
   ) {
     const authHeader = request.headers.get('authorization');
 
