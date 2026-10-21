@@ -141,6 +141,7 @@ export function setupBot(bot) {
       '━━━━━━━━━━━━━━━━\n\n' +
       '<b>⚡ Ações rápidas</b>\n' +
       '📊 <code>/resumo</code> — visão do mês\n' +
+      '🟡 <code>/pendentes</code> — contas a pagar\n' +
       '➖ <code>/gasto valor descrição</code> — registrar despesa\n' +
       '➕ <code>/receita valor descrição</code> — registrar receita\n' +
       '🏠 <code>/fixo categoria | valor | descrição</code>\n\n' +
@@ -168,6 +169,9 @@ export function setupBot(bot) {
       '<code>/receita 2500 Salário</code>\n\n' +
       '<b>📋 Consultar e gerenciar</b>\n' +
       '<code>/listar gastos</code>\n' +
+      '<code>/pendentes</code> — todas as contas em aberto\n' +
+      '<code>/pago 1</code> — confirma o gasto nº 1\n' +
+      '<code>/recebido 1</code> — confirma a receita nº 1\n' +
       '<code>/editar gasto | id | Alimentação | 65,00 | Mercado | Pix</code>\n' +
       '<code>/status gasto | id | Pago</code>\n' +
       '<code>/excluir receita | id</code>\n' +
@@ -197,6 +201,41 @@ export function setupBot(bot) {
     } catch (err) {
       console.error('[Telegram Bot] Erro ao buscar resumo:', err.message);
       await ctx.reply('❌ Não foi possível buscar o resumo agora. Tente novamente em instantes.');
+    }
+  });
+
+  bot.command('pendentes', async (ctx) => {
+    if (!await exigirChatAutorizado(ctx)) return;
+    try {
+      const mes = getMesAtual();
+      const [fixos, variaveis] = await Promise.all([
+        GastosFixosService.listarPorMes(mes),
+        GastosVariaveisService.listarPorMes(mes),
+      ]);
+      const itens = [
+        ...fixos.filter((item) => item.situacao === 'Pendente').map((item) => ({ ...item, tipo: '🏠 Fixo' })),
+        ...variaveis.filter((item) => item.situacao === 'Pendente').map((item) => ({ ...item, tipo: '🛒 Variável' })),
+      ].sort((a, b) => Number(b.valor) - Number(a.valor));
+
+      if (!itens.length) {
+        await ctx.reply(`✅ <b>Nenhuma conta pendente</b>\n━━━━━━━━━━━━━━━━\nTodos os gastos de <b>${mes}</b> estão marcados como pagos.`, { parse_mode: 'HTML' });
+        return;
+      }
+
+      const total = itens.reduce((soma, item) => soma + Number(item.valor || 0), 0);
+      const linhas = itens.slice(0, 30).map((item, indice) =>
+        `<b>${indice + 1}. ${escaparHtml(item.descricao)}</b>\n` +
+        `🟡 ${item.tipo}  •  <b>${formatarMoeda(item.valor)}</b>  •  ${escaparHtml(item.categoria)}`
+      );
+      await ctx.reply(
+        `🟡 <b>Contas pendentes</b>\n` +
+        `📅 ${mes}  •  ${itens.length} conta(s)\n` +
+        `━━━━━━━━━━━━━━━━\n\n${linhas.join('\n\n')}\n\n` +
+        `━━━━━━━━━━━━━━━━\n💸 <b>Total a pagar: ${formatarMoeda(total)}</b>${itens.length > 30 ? '\n\n<i>Mostrando as primeiras 30 contas.</i>' : ''}`,
+        { parse_mode: 'HTML' }
+      );
+    } catch (erro) {
+      await responderErro(ctx, 'Erro ao listar contas pendentes', erro);
     }
   });
 
@@ -375,6 +414,7 @@ export function setupBot(bot) {
       const total = exibidos.reduce((soma, item) => soma + Number(item.valor || 0), 0);
       const comandoTipo = tipoLista.chave === 'f' ? 'fixo' : tipoLista.chave === 'r' ? 'receita' : 'gasto';
       const situacaoConcluida = tipoLista.chave === 'r' ? 'Recebido' : 'Pago';
+      const comandoRapidoStatus = tipoLista.chave === 'r' ? '/recebido 1' : tipoLista.chave === 'g' ? '/pago 1' : `/status ${comandoTipo} | 1 | ${situacaoConcluida}`;
       const linhas = exibidos.map((item, indice) => {
         const situacao = item.situacao === 'Pago' || item.situacao === 'Recebido' ? '🟢' : '🟡';
         return `<b>${indice + 1}. ${escaparHtml(item.descricao)}</b>\n${situacao} ${escaparHtml(item.situacao)}  •  <b>${formatarMoeda(item.valor)}</b>${item.categoria ? `  •  ${escaparHtml(item.categoria)}` : ''}`;
@@ -385,7 +425,7 @@ export function setupBot(bot) {
         `━━━━━━━━━━━━━━━━\n\n${linhas.join('\n\n')}\n\n` +
         `━━━━━━━━━━━━━━━━\n💵 <b>Total: ${formatarMoeda(total)}</b>\n\n` +
         `<i>Para gerenciar um item, use o número exibido:</i>\n` +
-        `<code>/status ${comandoTipo} | 1 | ${situacaoConcluida}</code>\n` +
+        `<code>${comandoRapidoStatus}</code>\n` +
         `<code>/editar ${comandoTipo} | 1 | ...</code>\n` +
         `<code>/excluir ${comandoTipo} | 1</code>${itens.length > 20 ? '\n\n<i>Mostrando os primeiros 20 lançamentos.</i>' : ''}`,
         { parse_mode: 'HTML' }
@@ -421,6 +461,48 @@ export function setupBot(bot) {
       await ctx.reply('✅ Situação atualizada com sucesso!');
     } catch (erro) {
       await responderErro(ctx, 'Erro ao atualizar situação', erro);
+    }
+  });
+
+  bot.command('recebido', async (ctx) => {
+    if (!await exigirChatAutorizado(ctx)) return;
+    const numero = (ctx.payload || '').trim();
+    if (!/^\d+$/.test(numero)) {
+      await ctx.reply('Use: /recebido número\nExemplo: /recebido 1\n\nO número é o exibido em /listar receitas.');
+      return;
+    }
+    try {
+      const id = await resolverReferenciaDoLancamento('receita', numero);
+      const receitas = await ReceitasService.listarPorMes(getMesAtual());
+      const receita = receitas.find((item) => item.id === id);
+      if (!receita) throw new Error('Receita não encontrada no mês atual.');
+      await ReceitasService.atualizarStatus(id, 'Recebido');
+      await responderCartao(ctx, 'Receita confirmada', [
+        ['📝 Descrição:', receita.descricao], ['💵 Valor:', formatarMoeda(receita.valor)], ['✅ Situação:', 'Recebido'],
+      ]);
+    } catch (erro) {
+      await responderErro(ctx, 'Erro ao confirmar receita', erro);
+    }
+  });
+
+  bot.command('pago', async (ctx) => {
+    if (!await exigirChatAutorizado(ctx)) return;
+    const numero = (ctx.payload || '').trim();
+    if (!/^\d+$/.test(numero)) {
+      await ctx.reply('Use: /pago número\nExemplo: /pago 1\n\nO número é o exibido em /listar gastos.');
+      return;
+    }
+    try {
+      const id = await resolverReferenciaDoLancamento('gasto', numero);
+      const gastos = await GastosVariaveisService.listarPorMes(getMesAtual());
+      const gasto = gastos.find((item) => item.id === id);
+      if (!gasto) throw new Error('Gasto não encontrado no mês atual.');
+      await GastosVariaveisService.atualizarStatus(id, 'Pago');
+      await responderCartao(ctx, 'Gasto confirmado', [
+        ['📝 Descrição:', gasto.descricao], ['💵 Valor:', formatarMoeda(gasto.valor)], ['✅ Situação:', 'Pago'],
+      ]);
+    } catch (erro) {
+      await responderErro(ctx, 'Erro ao confirmar gasto', erro);
     }
   });
 
