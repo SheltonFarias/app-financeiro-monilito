@@ -6,6 +6,10 @@
     "orientation": "portrait",
     "scheme": "financeiro",
     "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.farias.financeiro",
+      "supportsTablet": false
+    },
     "plugins": ["expo-router", "expo-secure-store"],
     "experiments": { "typedRoutes": true }
   }
