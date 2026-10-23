@@ -18,7 +18,7 @@ import {
   LineChart, Line,
 } from "recharts";
 import { fmt, pct, fmtDate } from "../utils/format";
-import { deleteRow } from "../utils/apiService";
+import { apiFetchEnvelope, deleteRow } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 
 const TIPO_COLOR = { FII: "#34d399", "Ação": "#4f9cf9", ETF: "#f59e0b", "Renda Fixa": "#a78bfa" };
@@ -41,8 +41,7 @@ function useCotacoes(tickers) {
     setEstado(e => ({ ...e, loading: true, erro: null }));
     try {
       const params = new URLSearchParams({ tickers: tickers.join(',') });
-      const res = await fetch(`/api/investimentos/cotacoes?${params}`);
-      const json = await res.json();
+      const json = await apiFetchEnvelope(`/api/investimentos/cotacoes?${params}`);
       if (json.success) {
         const meta = json.meta ?? {};
         setEstado({
@@ -80,8 +79,7 @@ function useHistorico(symbol) {
   useEffect(() => {
     if (!symbol) { setHistorico([]); return; }
     setLoading(true);
-    fetch(`/api/investimentos/cotacoes/historico?symbol=${symbol}&limit=30`)
-      .then(r => r.json())
+    apiFetchEnvelope(`/api/investimentos/cotacoes/historico?symbol=${symbol}&limit=30`)
       .then(j => setHistorico(j.success ? (j.data.historico ?? []) : []))
       .catch(() => setHistorico([]))
       .finally(() => setLoading(false));

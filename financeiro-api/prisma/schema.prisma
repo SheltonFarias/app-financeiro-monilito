@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model GastoFixo {
+  id          String      @id @default(uuid())
+  categoria   String
+  descricao   String
+  valor       Float
+  vencimento  String?
+  cartao      String?     @default("—")
+  situacao    String      @default("Pendente")
+  mes         String
+  mensal      Boolean     @default(false)
+  data_inicio String?
+  data_fim    String?
+  template_id String?
+  template    GastoFixo?  @relation("GastoFixoTemplate", fields: [template_id], references: [id], onDelete: Cascade)
+  copias      GastoFixo[] @relation("GastoFixoTemplate")
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  @@index([mes])
+  @@index([template_id])
+  @@index([mensal])
+  @@map("gastos_fixos")
+}
+
+model GastoVariavel {
+  id           String    @id @default(uuid())
+  categoria    String
+  descricao    String
+  valor        Float
+  parcela      String?
+  data_compra  String?
+  pagamento    String
+  situacao     String    @default("Pendente")
+  mes          String
+  subcategoria String?
+  recorrente   Boolean   @default(false)
+  frequencia   String?   @default("mensal")
+  tags         String?
+  grupo_id     String?
+  parcelas     Parcela[]
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  @@index([mes])
+  @@index([grupo_id])
+  @@map("gastos_variaveis")
+}
+
+model Parcela {
+  id             String        @id @default(uuid())
+  gasto_id       String
+  numero_parcela Int
+  total_parcelas Int
+  valor_parcela  Float
+  mes            String
+  gasto          GastoVariavel @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
+
+  @@map("parcelas")
+}
+
+model Tag {
+  id   String @id @default(uuid())
+  nome String @unique
+  cor  String @default("#8fa3b8")
+
+  @@map("tags")
+}
+
+model Receita {
+  id          String    @id @default(uuid())
+  categoria   String
+  descricao   String
+  valor       Float
+  situacao    String    @default("Pendente")
+  cartao      String?   @default("—")
+  mes         String
+  recorrente  Boolean   @default(false)
+  mensal      Boolean   @default(false)
+  data_inicio String?
+  data_fim    String?
+  template_id String?
+  template    Receita?  @relation("ReceitaTemplate", fields: [template_id], references: [id])
+  copias      Receita[] @relation("ReceitaTemplate")
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  @@index([mes])
+  @@map("receitas")
+}
+
+model Investimento {
+  id                String   @id @default(uuid())
+  ticker            String   @unique
+  tipo              String
+  quantidade        Int      @default(0)
+  preco_medio       Float    @default(0)
+  setor             String?
+  data_compra       String?
+  rentabilidade_cdi Float?
+  dividendo_anual   Float?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@map("investimentos")
+}
+
+model Meta {
+  id                 String   @id @default(uuid())
+  titulo             String
+  descricao          String?
+  valor_alvo         Float
+  valor_atual        Float    @default(0)
+  data_limite        String?
+  gasto_variavel_id  String?
+  contribuicao_ativa Boolean  @default(false)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@map("metas")
+}
+
+model CartaoCredito {
+  id             String   @id @default(uuid())
+  nome           String   @unique
+  limite_total   Float
+  dia_fechamento Int
+  dia_vencimento Int
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("cartoes_credito")
+}
+
+model Configuracao {
+  chave      String   @id
+  valor      String
+  updated_at DateTime @updatedAt
+
+  @@map("configuracoes")
+}
+
+model Orcamento {
+  id           String   @id @default(uuid())
+  categoria    String
+  valor_limite Float
+  mes          String
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([categoria, mes])
+  @@index([mes])
+  @@map("orcamentos")
+}
+
+model Cotacao {
+  symbol     String   @id
+  preco      Float?
+  var_dia    Float?
+  volume     Int?
+  market_cap Float?
+  nome       String?
+  cotacao_em String?
+  salvo_em   DateTime @default(now())
+
+  @@map("cotacoes")
+}
+
+model HistoricoCotacao {
+  id         String   @id @default(uuid())
+  symbol     String
+  preco      Float?
+  var_dia    Float?
+  volume     Int?
+  market_cap Float?
+  cotacao_em String?
+  salvo_em   DateTime @default(now())
+
+  @@index([symbol, salvo_em])
+  @@map("historico_cotacoes")
+}
+
+model ControleRequisicao {
+  id                 Int      @id @default(1)
+  mes_ano_referencia String
+  total_requisicoes  Int      @default(0)
+  atualizado_em      DateTime @updatedAt
+
+  @@map("controle_requisicoes")
+}
+
+// ─── Módulo de Amortização ─────────────────────────────────────────────────
+
+model Financiamento {
+  id                    String   @id @default(uuid())
+  descricao             String
+  banco                 String
+  agencia               String?
+  numero_contrato       String?
+  programa              String?
+
+  // Composição financeira
+  valor_imovel          Float
+  valor_financiado      Float
+  recursos_proprios     Float    @default(0)
+  desconto_fgts         Float    @default(0)
+
+  // Taxas e sistema
+  taxa_juros_nominal_anual Float
+  taxa_efetiva_anual    Float?
+  sistema_amort         String   @default("PRICE")
+  indice_correcao       String   @default("TR")
+
+  // Prazo
+  prazo_meses           Int
+  data_inicio           DateTime
+  parcela_atual         Int      @default(1)
+
+  // Encargos contratuais
+  prestacao_inicial_aj  Float
+  seguro_mensal         Float    @default(0)
+  total_mensal_inicial  Float
+  tarifa_administracao  Float    @default(0)
+  garantia_fiduciaria   Float?
+
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  parcelas_pagas        ParcelaPaga[]
+  amortizacoes_extras   AmortizacaoExtra[]
+  indices_cache         IndiceBCBCache[]
+
+  @@map("financiamentos")
+}
+
+model ParcelaPaga {
+  id                  String        @id @default(uuid())
+  financiamento_id    String
+  numero_parcela      Int
+  data_vencimento     DateTime
+  data_pagamento_real DateTime?
+  valor_pago          Float
+  seguro_pago         Float?
+  observacao          String?
+
+  financiamento       Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([financiamento_id, numero_parcela])
+  @@map("parcelas_pagas")
+}
+
+model AmortizacaoExtra {
+  id                  String        @id @default(uuid())
+  financiamento_id    String
+  data_pagamento      DateTime
+  valor               Float
+  modalidade          String        // REDUZ_PRAZO | REDUZ_PRESTACAO
+  parcela_referencia  Int?
+  economia_juros      Float?
+  meses_economizados  Int?
+  novo_saldo_devedor  Float?
+  observacao          String?
+
+  financiamento       Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@index([financiamento_id])
+  @@map("amortizacoes_extras")
+}
+
+model IndiceBCBCache {
+  id               String        @id @default(uuid())
+  financiamento_id String
+  serie            Int           // 226 = TR, 433 = IPCA
+  competencia      String        // "YYYY-MM"
+  valor            Float
+  criado_em        DateTime      @default(now())
+
+  financiamento    Financiamento @relation(fields: [financiamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([financiamento_id, serie, competencia])
+  @@index([financiamento_id, serie])
+  @@map("indices_bcb_cache")
+}

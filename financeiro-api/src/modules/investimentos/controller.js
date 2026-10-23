@@ -1,0 +1,7 @@
+import { AuthError } from '../auth/service.js';
+import { authorize } from '../auth/authorize.js';
+const respostaErro = (error) => ({ status: error instanceof AuthError ? error.statusCode : error.statusCode || 400, body: { success: false, error: error.message } });
+export async function getInvestimentos(request, { auth, investimentosService }) { try { await authorize(request.headers, auth); return { status: 200, body: { success: true, data: await investimentosService.listar() } }; } catch (error) { return respostaErro(error); } }
+export async function postInvestimentos(request, { auth, investimentosService }) { try { await authorize(request.headers, auth); return { status: 201, body: { success: true, data: await investimentosService.criar(await request.json()) } }; } catch (error) { return respostaErro(error); } }
+export async function putInvestimento(request, { auth, investimentosService }, id) { try { await authorize(request.headers, auth); return { status: 200, body: { success: true, data: await investimentosService.atualizar(id, await request.json()) } }; } catch (error) { return respostaErro(error); } }
+export async function deleteInvestimento(request, { auth, investimentosService }, id) { try { await authorize(request.headers, auth); await investimentosService.remover(id); return { status: 200, body: { success: true, data: { message: 'Registro removido com sucesso.' } } }; } catch (error) { return respostaErro(error); } }

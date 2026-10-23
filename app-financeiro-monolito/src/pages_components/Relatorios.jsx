@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, Legend
 } from "recharts";
 import { fmt, COLORS } from "../utils/format";
-import { apiFetch } from "../utils/apiService";
+import { apiFetch, apiUrl } from "../utils/apiService";
 
 // ─── Meses disponíveis para seletor de comparação ────────────────────────────
 
@@ -143,7 +143,7 @@ export default function Relatorios({ mesAtual }) {
         <div className="flex gap-8">
           <button
             className="btn btn--ghost btn--sm"
-            onClick={() => window.open(`/api/exportar?mes=${mesAtual}&formato=csv`, '_blank')}
+            onClick={() => window.open(apiUrl(`/api/exportar?mes=${mesAtual}&formato=csv`), '_blank')}
           >
             📥 Exportar CSV
           </button>

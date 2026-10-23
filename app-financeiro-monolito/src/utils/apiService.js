@@ -10,7 +10,15 @@
 
 import { SESSION_KEY } from "./constants";
 
-const API_URL = "";
+/**
+ * Origem opcional da API.
+ *
+ * Sem a variável, as chamadas permanecem relativas ("/api/...") e o
+ * comportamento do monólito não muda. Quando a API for publicada de forma
+ * independente, configure NEXT_PUBLIC_API_URL sem barra final.
+ */
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+export const apiUrl = (path) => `${API_URL}${path}`;
 
 // ── Helpers internos ──────────────────────────────────────────────────────
 
@@ -43,9 +51,9 @@ export function clearToken() {
  * @param {RequestInit} [options] - Opções do fetch
  * @returns {Promise<any>} O campo `data` da resposta
  */
-export async function apiFetch(path, options = {}) {
+export async function apiFetchEnvelope(path, options = {}) {
   const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -65,7 +73,11 @@ export async function apiFetch(path, options = {}) {
     throw new Error(json.error || `Erro HTTP ${res.status}`);
   }
 
-  return json.data;
+  return json;
+}
+
+export async function apiFetch(path, options = {}) {
+  return (await apiFetchEnvelope(path, options)).data;
 }
 
 // ── Normalização de campos snake_case → camelCase ─────────────────────────
@@ -107,7 +119,7 @@ function normalizeGastoVariavel(gv) {
  */
 export async function loginApi(senha) {
   try {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ senha }),

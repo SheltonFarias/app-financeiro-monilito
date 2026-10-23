@@ -1,0 +1,2 @@
+import test from 'node:test'; import assert from 'node:assert/strict'; import { createOrcamentosService } from '../src/modules/orcamentos/service.js';
+test('orçamentos filtram por mês quando informado', async () => { let args; const service=createOrcamentosService({ orcamento:{findMany:async(a)=>{args=a;return [];}}}); await service.listar('Junho2026'); assert.deepEqual(args,{where:{mes:'Junho2026'},orderBy:{created_at:'asc'}}); });
