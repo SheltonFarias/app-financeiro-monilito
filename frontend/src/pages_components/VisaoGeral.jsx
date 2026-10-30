@@ -3,11 +3,12 @@
  * KPIs grandes em 2 linhas + gráfico de barras largo +
  * donuts de orçamento + tabela de demonstração de resultados.
  */
+import { useMemo, useState } from "react";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { fmt, pct, COLORS } from "../utils/format";
+import { fmt, COLORS } from "../utils/format";
 
 /* ─── Tooltip customizado ── */
 const ChartTooltip = ({ active, payload, label }) => {
@@ -30,7 +31,8 @@ const ChartTooltip = ({ active, payload, label }) => {
 
 /* ─── Donut com label central ── */
 function DonutKPI({ value, total, label, color, sub }) {
-  const pctVal = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+  const possuiBase = total > 0;
+  const pctVal = possuiBase ? Math.min((value / total) * 100, 100) : 0;
   const data = [
     { value: pctVal },
     { value: Math.max(100 - pctVal, 0) },
@@ -53,19 +55,45 @@ function DonutKPI({ value, total, label, color, sub }) {
           alignItems: "center", justifyContent: "center",
         }}>
           <span style={{ fontSize: 18, fontWeight: 800, color, fontFamily: "var(--mono)" }}>
-            {pctVal.toFixed(0)}%
+            {possuiBase ? `${pctVal.toFixed(0)}%` : "—"}
           </span>
         </div>
       </div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>{label}</div>
-        {sub && <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>}
+        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>
+          {possuiBase ? sub : "receita não registrada"}
+        </div>
       </div>
     </div>
   );
 }
 
-export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
+const dataDaConta = (conta) => {
+  const texto = conta.parcela || conta.vencimento || conta.dataCompra || conta.data_compra;
+  if (!texto) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(texto)) return new Date(`${texto.slice(0, 10)}T12:00:00`);
+  const dia = Number(texto);
+  if (Number.isInteger(dia) && dia >= 1 && dia <= 31) {
+    const hoje = new Date();
+    return new Date(hoje.getFullYear(), hoje.getMonth(), dia, 12);
+  }
+  return null;
+};
+
+const urgenciaConta = (conta) => {
+  const data = dataDaConta(conta);
+  if (!data) return { tipo: 'sem-data', texto: 'Sem vencimento informado', dias: 9999 };
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const dias = Math.round((data - hoje) / 86400000);
+  if (dias < 0) return { tipo: 'atrasada', texto: `${Math.abs(dias)} dia(s) em atraso`, dias };
+  if (dias === 0) return { tipo: 'hoje', texto: 'Vence hoje', dias };
+  if (dias <= 7) return { tipo: 'proxima', texto: `Vence em ${dias} dia(s)`, dias };
+  return { tipo: 'futura', texto: `Vence em ${dias} dias`, dias };
+};
+
+export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento, onMarkPaid }) {
+  const [filtroPendencias, setFiltroPendencias] = useState('todas');
   const { gastosFixos, gastosVariaveis, receitas, investimentos, orcamentos = [], resumo, evolucaoMensal } = data;
 
   /* ─── Totais ── */
@@ -75,13 +103,18 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
   const totalReceita = receitas.reduce((s, r) => s + r.valor, 0);
   const saldo        = totalReceita - totalGasto;
   const totalInvest  = investimentos.reduce((s, i) => s + i.quantidade * i.precoMedio, 0);
+  const percentualGastos = totalReceita > 0 ? (totalGasto / totalReceita) * 100 : null;
+  const comprometimentoFixo = totalReceita > 0 ? (totalFixo / totalReceita) * 100 : null;
 
   const pagas    = [...gastosFixos, ...gastosVariaveis].filter(g => g.situacao === "Pago").reduce((s, g) => s + g.valor, 0);
   const pendente = [...gastosFixos, ...gastosVariaveis].filter(g => g.situacao === "Pendente").reduce((s, g) => s + g.valor, 0);
 
-  const contasEmAberto = [...gastosFixos, ...gastosVariaveis]
-    .filter(g => g.situacao === "Pendente")
-    .sort((a, b) => b.valor - a.valor);
+  const contasEmAberto = useMemo(() => [
+    ...gastosFixos.map((g) => ({ ...g, origem: 'gastos_fixos' })),
+    ...gastosVariaveis.map((g) => ({ ...g, origem: 'gastos_variaveis' })),
+  ].filter(g => g.situacao === "Pendente").map((g) => ({ ...g, urgencia: urgenciaConta(g) }))
+    .sort((a, b) => a.urgencia.dias - b.urgencia.dias || b.valor - a.valor), [gastosFixos, gastosVariaveis]);
+  const contasFiltradas = contasEmAberto.filter((conta) => filtroPendencias === 'todas' || (filtroPendencias === '7dias' ? conta.urgencia.dias >= 0 && conta.urgencia.dias <= 7 : conta.urgencia.tipo === filtroPendencias));
 
   /* ─── Gráfico mensal (usa evolucaoMensal se disponível, senão mês atual) ── */
   const chartData = evolucaoMensal?.length > 0
@@ -109,20 +142,47 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
   const catData = catAndOrcamentos
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
+  const orcamentosCriticos = catAndOrcamentos.filter(({ value, orcamento }) =>
+    orcamento?.valor_limite > 0 && value / orcamento.valor_limite >= 0.8
+  );
+
+  const alertaPrincipal = totalReceita <= 0
+    ? { cor: "#f59e0b", titulo: "Receita não registrada", texto: `${fmt(pendente)} em compromissos pendentes; percentuais e projeções de cobertura ficam indisponíveis até registrar a receita.` }
+    : saldo < 0
+      ? { cor: "#ef4444", titulo: "Déficit no resultado do mês", texto: `As despesas superam a receita em ${fmt(Math.abs(saldo))}. Priorize compromissos essenciais e reveja gastos variáveis.` }
+      : orcamentosCriticos.length > 0
+        ? { cor: "#f59e0b", titulo: "Orçamento em atenção", texto: `${orcamentosCriticos.length} categoria(s) já consumiram pelo menos 80% do limite definido.` }
+        : { cor: "var(--teal)", titulo: "Fluxo mensal equilibrado", texto: "O resultado do mês está positivo. Acompanhe as contas pendentes até o próximo recebimento." };
 
   /* ─── Receitas por situação ── */
   const recebido = receitas.filter(r => r.situacao === "Recebido").reduce((s, r) => s + r.valor, 0);
+  const saldoBaseCaixa = recebido - pagas;
+  const eventosCaixa = contasEmAberto.filter((conta) => conta.urgencia.dias >= 0 && conta.urgencia.dias <= 60).map((conta) => ({ ...conta, data: dataDaConta(conta) })).sort((a, b) => a.data - b.data);
+  const projecaoCaixa = eventosCaixa.reduce((estado, evento) => {
+    const saldoProjetado = estado.saldo - evento.valor;
+    estado.saldo = saldoProjetado;
+    estado.linhas.push({ ...evento, saldoProjetado });
+    return estado;
+  }, { saldo: saldoBaseCaixa, linhas: [] });
+  const menorSaldoProjetado = projecaoCaixa.linhas.reduce((menor, linha) => Math.min(menor, linha.saldoProjetado), saldoBaseCaixa);
 
   return (
     <div className="flex flex-col gap-16">
+      <div className="dashboard-alert" style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 15px", borderRadius: "var(--r-md)", background: `${alertaPrincipal.cor}12`, border: `1px solid ${alertaPrincipal.cor}55` }}>
+        <div style={{ width: 9, height: 9, borderRadius: "50%", background: alertaPrincipal.cor, flexShrink: 0 }} />
+        <div>
+          <strong style={{ display: "block", color: alertaPrincipal.cor, fontSize: 13 }}>{alertaPrincipal.titulo}</strong>
+          <span style={{ color: "var(--text-secondary)", fontSize: 12 }}>{alertaPrincipal.texto}</span>
+        </div>
+      </div>
 
       {/* ── Linha 1: 4 KPIs principais ── */}
       <div className="grid-kpi">
         <KPI color="teal"   label="Total Receita"     value={fmt(totalReceita)}
           sub={`${recebido > 0 ? fmt(recebido) + " recebido" : "aguardando recebimento"}`} />
         <KPI color="red"    label="Total Despesas"    value={fmt(totalGasto)}
-          sub={pct(totalGasto, totalReceita) + " da receita"} />
-        <KPI color="blue"   label="Saldo Livre"       value={fmt(saldo)}
+          sub={percentualGastos === null ? "receita não registrada" : `${percentualGastos.toFixed(1)}% da receita`} />
+        <KPI color="blue"   label="Resultado do Mês"  value={fmt(saldo)}
           sub={saldo >= 0 ? "Situação positiva ✓" : "Deficit ⚠"} />
         <KPI color="purple" label="Patrimônio Invest." value={fmt(totalInvest)}
           sub={`${investimentos.length} ativos`} />
@@ -132,7 +192,7 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
       <div className="grid-kpi">
         <KPI color="green"  label="Contas Pagas"    value={fmt(pagas)}
           sub={`${gastosFixos.filter(g => g.situacao === "Pago").length + gastosVariaveis.filter(g => g.situacao === "Pago").length} itens`} />
-        <KPI color="amber"  label="A Pagar"         value={fmt(pendente)}
+        <KPI color="amber"  label="Compromissos Pendentes" value={fmt(pendente)}
           sub={`${gastosFixos.filter(g => g.situacao === "Pendente").length + gastosVariaveis.filter(g => g.situacao === "Pendente").length} itens pendentes`} />
 
         {/* Donut: % de gastos fixos sobre receita */}
@@ -141,7 +201,7 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
             value={totalFixo} total={totalReceita}
             label="Gastos Fixos / Receita"
             color="var(--blue)"
-            sub={fmt(totalFixo)}
+            sub={comprometimentoFixo === null ? "" : `${fmt(totalFixo)} comprometidos`}
           />
         </div>
 
@@ -162,7 +222,7 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
         <div className="card">
           <div className="sec-header">
             <span className="sec-header__title">Receitas e Despesas</span>
-            <span className="sec-header__sub">{chartData.length} período(s)</span>
+            <span className="sec-header__sub">{chartData.length < 2 ? "registre mais meses para analisar tendências" : `${chartData.length} períodos`}</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <ComposedChart data={chartData} margin={{ left: 0, right: 0 }}>
@@ -196,6 +256,11 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
               </div>
             ))}
           </div>
+          {chartData.length < 2 && (
+            <div style={{ marginTop: 12, padding: "9px 11px", borderRadius: "var(--r-sm)", background: "var(--canvas-soft)", color: "var(--text-muted)", fontSize: 11 }}>
+              A tendência ficará mais útil após o registro de pelo menos três períodos mensais.
+            </div>
+          )}
         </div>
 
         {/* Gastos por Categoria & Orçamentos */}
@@ -299,33 +364,40 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
         </div>
       </div>
 
+      <div className="cash-forecast-card">
+        <div className="cash-forecast-card__header"><div><span className="sec-header__title">Previsão diária de caixa</span><span>Próximos 60 dias · baseada nos vencimentos cadastrados</span></div><div><strong>{fmt(menorSaldoProjetado)}</strong><small>menor saldo projetado</small></div></div>
+        <div className="cash-forecast-card__body">
+          <div className="cash-forecast-card__base"><span>Saldo inicial de referência</span><strong>{fmt(saldoBaseCaixa)}</strong><small>Receitas recebidas menos contas já pagas no período. Configure contas financeiras para uma conciliação completa.</small></div>
+          <div className="cash-forecast-card__events">{projecaoCaixa.linhas.length === 0 ? <span>Nenhum vencimento datado nos próximos 60 dias.</span> : projecaoCaixa.linhas.slice(0, 6).map((linha) => <div key={linha.id ?? linha.descricao}><span>{linha.data.toLocaleDateString('pt-BR')} · {linha.descricao}</span><strong className={linha.saldoProjetado < 0 ? 'text-red' : ''}>{fmt(linha.saldoProjetado)}</strong></div>)}</div>
+        </div>
+      </div>
+
       {/* ── Linha 5: Contas em Aberto + Demonstração de Resultados ── */}
-      <div className="grid-half">
+      <div className="flex flex-col gap-16">
           {/* Lembrete: Contas em Aberto */}
-          <div className="card card--flat">
-            <div className="sec-header" style={{ marginBottom: 12 }}>
-              <span className="sec-header__title">⚠️ Contas em Aberto</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{contasEmAberto.length} pendentes</span>
+          <div className="card card--flat open-accounts-card">
+            <div className="open-accounts-card__header">
+              <div><span className="sec-header__title">⚠️ Contas em Aberto</span><span className="open-accounts-card__caption">Priorize estes compromissos no fluxo do mês</span></div>
+              <div className="open-accounts-card__summary"><strong>{fmt(pendente)}</strong><span>{contasEmAberto.length} pendentes</span></div>
+            </div>
+            <div className="open-accounts-card__filters">
+              {[['todas', 'Todas'], ['atrasada', 'Atrasadas'], ['hoje', 'Hoje'], ['7dias', 'Próximos 7 dias']].map(([key, label]) => <button key={key} className={filtroPendencias === key ? 'filter-btn filter-btn--red filter-btn--active' : 'filter-btn'} onClick={() => setFiltroPendencias(key)}>{label}</button>)}
             </div>
             {contasEmAberto.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "16px", color: "var(--text-muted)", fontSize: 12 }}>
+              <div className="open-accounts-card__empty">
                 Tudo pago neste mês! 🎉
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
-                {contasEmAberto.map((conta) => (
-                  <div key={conta.id ?? conta.descricao} style={{ 
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                    background: "var(--canvas-soft)", padding: "10px 12px", borderRadius: "var(--r-md)",
-                    borderLeft: "3px solid var(--red)"
-                  }}>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{conta.descricao}</span>
-                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{conta.categoria || "Gasto"}</span>
+              <div className="open-accounts-card__list">
+                {contasFiltradas.length === 0 && <div className="open-accounts-card__empty">Nenhuma conta neste filtro.</div>}
+                {contasFiltradas.map((conta) => (
+                  <div key={conta.id ?? conta.descricao} className="open-account-item">
+                    <div className="open-account-item__icon">!</div>
+                    <div className="open-account-item__detail">
+                      <span className="open-account-item__description">{conta.descricao}</span>
+                      <span className="open-account-item__category">{conta.categoria || "Gasto"} · {conta.urgencia.texto}</span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--red)", fontFamily: "var(--mono)" }}>
-                      {fmt(conta.valor)}
-                    </span>
+                    <div className="open-account-item__value"><span>A pagar</span><strong>{fmt(conta.valor)}</strong><button className="open-account-item__pay" onClick={() => onMarkPaid?.(conta)}>Marcar pago</button></div>
                   </div>
                 ))}
               </div>
@@ -342,11 +414,11 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento }) {
             <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, minWidth: 40, textAlign: "right" }}>%</span>
           </div>
           {[
-            { label: "Total Receita",     val: totalReceita, pct: 100,                              bold: true,  color: "teal" },
-            { label: "Gastos Fixos",      val: totalFixo,    pct: totalReceita > 0 ? (totalFixo / totalReceita * 100).toFixed(0) : 0 },
-            { label: "Gastos Variáveis",  val: totalVar,     pct: totalReceita > 0 ? (totalVar  / totalReceita * 100).toFixed(0) : 0 },
-            { label: "Total Despesas",    val: totalGasto,   pct: totalReceita > 0 ? (totalGasto/ totalReceita * 100).toFixed(0) : 0, bold: true, color: "red" },
-            { label: "Saldo Livre",       val: saldo,        pct: totalReceita > 0 ? (Math.abs(saldo)/ totalReceita * 100).toFixed(0) : 0, bold: true, color: saldo >= 0 ? "teal" : "red" },
+            { label: "Total Receita",     val: totalReceita, pct: totalReceita > 0 ? 100 : "—",                    bold: true,  color: "teal" },
+            { label: "Gastos Fixos",      val: totalFixo,    pct: totalReceita > 0 ? (totalFixo / totalReceita * 100).toFixed(0) : "—" },
+            { label: "Gastos Variáveis",  val: totalVar,     pct: totalReceita > 0 ? (totalVar  / totalReceita * 100).toFixed(0) : "—" },
+            { label: "Total Despesas",    val: totalGasto,   pct: totalReceita > 0 ? (totalGasto/ totalReceita * 100).toFixed(0) : "—", bold: true, color: "red" },
+            { label: "Resultado do Mês",  val: saldo,        pct: totalReceita > 0 ? (Math.abs(saldo)/ totalReceita * 100).toFixed(0) : "—", bold: true, color: saldo >= 0 ? "teal" : "red" },
             { label: "Patrimônio Invest.",val: totalInvest,  pct: "—" },
           ].map((row, i) => (
             <div key={i} className={`demo-row ${row.bold ? "demo-row--bold" : ""} ${row.color ? "demo-row--" + row.color : ""}`}>

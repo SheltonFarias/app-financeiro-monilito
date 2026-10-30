@@ -21,6 +21,8 @@ import { createInvestimentosService } from './modules/investimentos/service.js';
 import { getInvestimentos, postInvestimentos, putInvestimento, deleteInvestimento } from './modules/investimentos/controller.js';
 import { createFinanciamentosService } from './modules/financiamentos/service.js';
 import { executarFinanciamento } from './modules/financiamentos/controller.js';
+import { createLocacoesService } from './modules/locacoes/service.js';
+import { executarLocacao } from './modules/locacoes/controller.js';
 import { createCotacoesService } from './modules/cotacoes/service.js';
 import { cotacaoController } from './modules/cotacoes/controller.js';
 import { createExportacaoService } from './modules/exportacao/service.js';
@@ -80,6 +82,7 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
   const receitasController = services.receitasController ?? (prisma ? createLancamentosController({ auth: config.auth, impl: createLancamentosService(prisma, 'receita') }) : null);
   const investimentosService = services.investimentosService ?? (prisma ? createInvestimentosService(prisma) : null);
   const financiamentosService = services.financiamentosService ?? (prisma ? createFinanciamentosService(prisma, fetchImpl) : null);
+  const locacoesService = services.locacoesService ?? (prisma ? createLocacoesService(prisma) : null);
   const cotacoesService = services.cotacoesService ?? (prisma ? createCotacoesService(prisma, { fetchImpl }) : null);
   const exportacaoService = services.exportacaoService ?? (prisma ? createExportacaoService(prisma) : null);
   const botService = services.botService ?? (prisma ? createBotService(prisma, { token: process.env.TELEGRAM_BOT_TOKEN, webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET, allowedChatId: process.env.TELEGRAM_ALLOWED_CHAT_ID, fetchImpl }) : null);
@@ -205,6 +208,16 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
       if (acao && request.method === 'POST') { const result = await postAtivarMeta(new Request(requestUrl, { method: 'POST', headers: forwardHeaders(request.headers), body: await readBody(request) }), dependencies, metaId); writeJson(response, result.status, result.body); return; }
       if (acao && request.method === 'DELETE') { const result = await deleteAtivarMeta(new Request(requestUrl, { method: 'DELETE', headers: forwardHeaders(request.headers) }), dependencies, metaId); writeJson(response, result.status, result.body); return; }
     }
+    if (locacoesService && requestUrl.pathname === '/api/locacoes/imoveis') {
+      const acao = request.method === 'GET' ? 'listar' : request.method === 'POST' ? 'criarImovel' : null;
+      if (acao) { const result = await executarLocacao(new Request(requestUrl, { method: request.method, headers: forwardHeaders(request.headers), body: request.method === 'GET' ? undefined : await readBody(request) }), { auth: config.auth, locacoesService }, acao); writeJson(response, result.status, result.body); return; }
+    }
+    if (locacoesService && request.method === 'GET' && requestUrl.pathname === '/api/locacoes/inquilinos') { const result = await executarLocacao(new Request(requestUrl, { headers: forwardHeaders(request.headers) }), { auth: config.auth, locacoesService }, 'listarInquilinos'); writeJson(response, result.status, result.body); return; }
+    if (locacoesService && request.method === 'POST' && requestUrl.pathname === '/api/locacoes/inquilinos') { const result = await executarLocacao(new Request(requestUrl, { method: 'POST', headers: forwardHeaders(request.headers), body: await readBody(request) }), { auth: config.auth, locacoesService }, 'criarInquilino'); writeJson(response, result.status, result.body); return; }
+    if (locacoesService && request.method === 'POST' && requestUrl.pathname === '/api/locacoes/contratos') { const result = await executarLocacao(new Request(requestUrl, { method: 'POST', headers: forwardHeaders(request.headers), body: await readBody(request) }), { auth: config.auth, locacoesService }, 'criarContrato'); writeJson(response, result.status, result.body); return; }
+    if (locacoesService && request.method === 'POST' && requestUrl.pathname === '/api/locacoes/despesas') { const result = await executarLocacao(new Request(requestUrl, { method: 'POST', headers: forwardHeaders(request.headers), body: await readBody(request) }), { auth: config.auth, locacoesService }, 'criarDespesa'); writeJson(response, result.status, result.body); return; }
+    const locacaoRoute = requestUrl.pathname.match(/^\/api\/locacoes\/(imoveis|contratos|cobrancas|reajustes)\/([^/]+)(?:\/(cobrancas|receber|resumo|reajustes|confirmar))?$/);
+    if (locacoesService && locacaoRoute) { const [, recurso, id, acao] = locacaoRoute; const mapa = { imoveis: request.method === 'PUT' ? 'atualizarImovel' : null, contratos: acao === 'cobrancas' ? 'gerarCobranca' : acao === 'resumo' ? 'resumo' : acao === 'reajustes' ? 'simularReajuste' : request.method === 'PUT' ? 'atualizarContrato' : request.method === 'DELETE' ? 'removerContrato' : request.method === 'GET' ? 'obterContrato' : null, cobrancas: acao === 'receber' ? 'receberCobranca' : null, reajustes: acao === 'confirmar' ? 'confirmarReajuste' : null }; const metodo = mapa[recurso]; if (metodo) { const body = ['GET','DELETE'].includes(request.method) ? undefined : await readBody(request); const result = await executarLocacao(new Request(requestUrl, { method: request.method, headers: forwardHeaders(request.headers), body }), { auth: config.auth, locacoesService }, metodo, id); writeJson(response, result.status, result.body); return; } }
     if (request.method === 'GET' && requestUrl.pathname === '/api/investimentos' && investimentosService) {
       const result = await getInvestimentos(new Request(requestUrl, { headers: forwardHeaders(request.headers) }), { auth: config.auth, investimentosService }); writeJson(response, result.status, result.body); return;
     }

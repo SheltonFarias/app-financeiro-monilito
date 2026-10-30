@@ -1,7 +1,8 @@
 import { Tabs } from "expo-router";
+import { theme } from "@/theme";
 
 export default function TabsLayout() {
-  return <Tabs screenOptions={{ headerStyle: { backgroundColor: "#101827" }, headerTintColor: "#f8fafc", tabBarStyle: { backgroundColor: "#172033", borderTopColor: "#243046" }, tabBarActiveTintColor: "#2dd4bf", tabBarInactiveTintColor: "#94a3b8" }}>
+  return <Tabs screenOptions={{ headerStyle: { backgroundColor: theme.canvas }, headerShadowVisible: false, headerTintColor: theme.text, headerTitleStyle: { fontWeight: "700" }, tabBarStyle: { backgroundColor: theme.canvasRaised, borderTopColor: theme.line }, tabBarActiveTintColor: theme.blue, tabBarInactiveTintColor: theme.muted }}>
     <Tabs.Screen name="index" options={{ title: "Início" }} />
     <Tabs.Screen name="lancamentos" options={{ title: "Lançamentos" }} />
     <Tabs.Screen name="ajustes" options={{ title: "Ajustes" }} />

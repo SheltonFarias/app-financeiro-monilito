@@ -95,6 +95,46 @@ function fmtHora(isoStr) {
   catch { return null; }
 }
 
+function aliquotaIrRendaFixa(dias) {
+  if (dias <= 180) return 22.5;
+  if (dias <= 360) return 20;
+  if (dias <= 720) return 17.5;
+  return 15;
+}
+
+function calcularRendaFixa(inv, cdiDiario, cdiAnual) {
+  const principal = Number(inv.preco_medio || inv.precoMedio || 0) * Number(inv.quantidade || 0);
+  const diasCorridos = inv.data_compra
+    ? Math.max(0, Math.floor((Date.now() - new Date(`${inv.data_compra}T12:00:00`).getTime()) / 86400000))
+    : 0;
+  const indexador = inv.indexador || 'CDI';
+  const percentualCdi = Number(inv.rentabilidade_cdi ?? inv.rentabilidadeCdi ?? 100);
+  const taxaContratada = Number(inv.taxa_anual ?? inv.taxaAnual ?? 0);
+  const diasUteis = Math.round(diasCorridos * 252 / 365);
+  const fator = indexador === 'CDI'
+    ? Math.pow(1 + ((cdiDiario || 0) * percentualCdi / 100) / 100, diasUteis)
+    : Math.pow(1 + taxaContratada / 100, diasCorridos / 365);
+  const valorBruto = principal * fator;
+  const rendimentoBruto = valorBruto - principal;
+  const aliquotaIr = aliquotaIrRendaFixa(diasCorridos);
+  const irEstimado = Math.max(0, rendimentoBruto * aliquotaIr / 100);
+  const vencimento = inv.data_vencimento ?? inv.dataVencimento;
+  const diasAteVencimento = vencimento
+    ? Math.ceil((new Date(`${vencimento}T12:00:00`).getTime() - Date.now()) / 86400000)
+    : null;
+  const taxaExibida = indexador === 'CDI'
+    ? `${percentualCdi}% do CDI · ~${((percentualCdi / 100) * cdiAnual).toFixed(2)}% a.a.`
+    : indexador === 'IPCA+'
+      ? `IPCA + ${taxaContratada.toFixed(2)}% a.a.`
+      : `${taxaContratada.toFixed(2)}% a.a. prefixado`;
+
+  return {
+    principal, diasCorridos, diasUteis, indexador, percentualCdi, taxaContratada,
+    valorBruto, valorLiquido: valorBruto - irEstimado, rendimentoBruto, irEstimado, aliquotaIr,
+    diasAteVencimento, taxaExibida,
+  };
+}
+
 function VarBadge({ valor }) {
   if (valor === null || valor === undefined)
     return <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>;
@@ -332,6 +372,19 @@ function DrawerFichaTecnica({ inv, totalAtual, cdiAnual, onClose }) {
             </div>
           )}
 
+          {inv.tipo === 'Renda Fixa' && inv.rendaFixa && (
+            <div className="drawer__section">
+              <div className="drawer__section-title">🏦 Contrato e liquidez</div>
+              <div className="drawer__metrics">
+                <div className="drawer__metric"><div className="drawer__metric-label">Indexador</div><div className="drawer__metric-value" style={{ color: '#c4b5fd' }}>{inv.rendaFixa.indexador}</div></div>
+                <div className="drawer__metric"><div className="drawer__metric-label">Emissor</div><div className="drawer__metric-value">{inv.emissor || 'Não informado'}</div></div>
+                <div className="drawer__metric"><div className="drawer__metric-label">Liquidez</div><div className="drawer__metric-value">{inv.liquidez || 'Não informada'}</div></div>
+                <div className="drawer__metric"><div className="drawer__metric-label">IR estimado</div><div className="drawer__metric-value" style={{ color: '#fbbf24' }}>{fmt(inv.rendaFixa.irEstimado)}</div><div className="drawer__metric-sub">{inv.rendaFixa.aliquotaIr}% sobre o rendimento</div></div>
+              </div>
+              <div className="drawer__disclaimer">Estimativa educacional: considera IR regressivo sobre o rendimento. Marcação a mercado, IPCA futuro, taxas e regras específicas do título podem alterar o resgate.</div>
+            </div>
+          )}
+
           {/* Data de compra */}
           {inv.data_compra && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', padding: '8px 0', borderTop: '1px solid var(--hairline)' }}>
@@ -346,13 +399,18 @@ function DrawerFichaTecnica({ inv, totalAtual, cdiAnual, onClose }) {
 }
 
 // ── Aba 1: Carteira ──────────────────────────────────────────────────────────
-function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, resultadoPctTotal, tipoData,
+function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, resultadoPctTotal, tipoData, cofreGuardado, cofrePlanejado, usadoDoCofre, cofreDisponivel,
   loading, erro, hora, refetchCotacoes, requisicoesMes, limiteMaximo, limiteMensalAtingido,
   dadosDesatualizados, atualizadoEm, cdiAnual, onAdd, onEdit, onDelete, toggling, onSelectAtivo }) {
 
   const varDiaTotal = enriched
     .filter(i => i.temCotacao && i.varDia !== null)
     .reduce((acc, i) => acc + (i.varDia * i.valorTotal / 100), 0);
+  const maiorAtivo = [...enriched].sort((a, b) => b.valorTotal - a.valorTotal)[0];
+  const concentracaoMaiorAtivo = totalAtual > 0 && maiorAtivo ? maiorAtivo.valorTotal / totalAtual * 100 : 0;
+  const setores = new Set(enriched.map((item) => item.setor).filter(Boolean));
+  const proventosEstimados = enriched.reduce((total, item) => total + (Number(item.dividendo_anual ?? item.dividendoAnual) || 0) * (Number(item.quantidade) || 0), 0);
+  const impostoProvisionado = enriched.filter((item) => ['Ação', 'FII', 'ETF'].includes(item.tipo) && item.resultado > 0).reduce((total, item) => total + item.resultado * 0.15, 0);
 
   return (
     <div className="flex flex-col gap-16">
@@ -386,6 +444,13 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
         </div>
       </div>
 
+      <div className="investment-risk-panel">
+        <div><span>Concentração</span><strong>{maiorAtivo ? `${maiorAtivo.ticker}: ${concentracaoMaiorAtivo.toFixed(1)}%` : 'Sem ativos'}</strong><small>{concentracaoMaiorAtivo >= 30 ? 'Atenção: concentração elevada em um ativo.' : 'Distribuição por ativo dentro do limite de atenção.'}</small></div>
+        <div><span>Diversificação</span><strong>{setores.size} setor(es)</strong><small>Classes e setores são calculados pela carteira cadastrada.</small></div>
+        <div><span>Proventos estimados</span><strong>{fmt(proventosEstimados)}/ano</strong><small>Estimativa informada no cadastro; não representa provento recebido.</small></div>
+        <div><span>Imposto provisionado</span><strong>{fmt(impostoProvisionado)}</strong><small>Estimativa educativa sobre ganhos não realizados; confirme com contador.</small></div>
+      </div>
+
       {/* ── KPIs ───────────────────────────────────────────────────── */}
       <div className="grid-kpi">
         {[
@@ -402,8 +467,14 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
         ))}
       </div>
 
+      <div className="investment-cofre-card">
+        <div><span>🏦 Cofre / Poupança de investimentos</span><strong>{fmt(cofreDisponivel)}</strong><small>saldo disponível após aplicações feitas com o cofre</small></div>
+        <div><span>Planejado no período</span><strong>{fmt(cofrePlanejado)}</strong><small>inclui aportes pendentes; já contam como despesa prevista</small></div>
+        <div><span>Usado do cofre</span><strong>{fmt(usadoDoCofre)}</strong><small>aplicações registradas com esta origem</small></div>
+      </div>
+
       {/* ── Resultado + CDI + Variação do dia ──────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+      <div className="investment-insights" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
         <div style={{ background: resultadoTotal >= 0 ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)', border: `1.5px solid ${resultadoTotal >= 0 ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}`, borderRadius: 14, padding: '16px 20px' }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>📊 Resultado Total</div>
           <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'var(--mono)', color: resultadoTotal >= 0 ? '#34d399' : '#f87171' }}>
@@ -438,7 +509,7 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
       </div>
 
       {/* ── Cards de Ativos + Alocação ─────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16, alignItems: 'start' }}>
+      <div className="investment-portfolio-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16, alignItems: 'start' }}>
 
         {/* Cards de ativos */}
         <div>
@@ -450,13 +521,13 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="investment-asset-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {enriched.map((inv, i) => {
                 const pctCart = totalAtual > 0 ? (inv.valorTotal / totalAtual) * 100 : 0;
                 const corTipo = TIPO_COLOR[inv.tipo] || '#64748b';
                 const positivo = inv.resultado >= 0;
                 return (
-                  <div key={i}
+                  <div key={i} className="investment-asset-card"
                     onClick={() => onSelectAtivo(inv)}
                     style={{
                       background: 'var(--surface)',
@@ -471,8 +542,8 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.transform = 'none'; }}
                   >
                     {/* Linha 1: Ticker + Tipo + Variação do dia + Ações */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="investment-asset-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div className="investment-asset-identity" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div>
                           <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 15, letterSpacing: '-0.01em' }}>{inv.ticker}</div>
                           <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 1 }}>
@@ -481,7 +552,7 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
                         </div>
                         <span className="badge" style={{ background: corTipo + '22', color: corTipo, fontSize: 10, padding: '2px 8px' }}>{inv.tipo}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div className="investment-asset-actions" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         {inv.tipo !== 'Renda Fixa' && inv.varDia !== null && inv.varDia !== undefined && (
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Hoje</div>
@@ -504,7 +575,15 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
                     </div>
 
                     {/* Linha 2: Métricas em grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+                    {inv.tipo === 'Renda Fixa' ? (
+                      <div className="investment-asset-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        <div style={{ background: 'rgba(167,139,250,0.09)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>Aplicado</div><div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--mono)' }}>{fmt(inv.rendaFixa.principal)}</div></div>
+                        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>Bruto estimado</div><div style={{ fontSize: 13, fontWeight: 700, color: '#c4b5fd', fontFamily: 'var(--mono)' }}>{fmt(inv.rendaFixa.valorBruto)}</div></div>
+                        <div style={{ background: 'rgba(52,211,153,0.08)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>Líquido estimado</div><div style={{ fontSize: 13, fontWeight: 700, color: '#34d399', fontFamily: 'var(--mono)' }}>{fmt(inv.rendaFixa.valorLiquido)}</div></div>
+                        <div style={{ background: 'rgba(251,191,36,0.08)', borderRadius: 8, padding: '8px 10px' }}><div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>Vencimento</div><div style={{ fontSize: 12, fontWeight: 700, color: inv.rendaFixa.diasAteVencimento !== null && inv.rendaFixa.diasAteVencimento < 0 ? '#f87171' : '#fbbf24' }}>{inv.rendaFixa.diasAteVencimento === null ? (inv.liquidez || 'Não informado') : inv.rendaFixa.diasAteVencimento < 0 ? 'Vencido' : `${inv.rendaFixa.diasAteVencimento} dias`}</div></div>
+                      </div>
+                    ) : (
+                    <div className="investment-asset-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
                       <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 10px' }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>Qtd.</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--mono)' }}>{inv.quantidade}</div>
@@ -536,10 +615,11 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
                         </div>
                       </div>
                     </div>
+                    )}
 
                     {/* Linha 3: Barra de % carteira + badge avaliação + DY */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
-                      <div style={{ flex: 1 }}>
+                    <div className="investment-allocation-row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                      <div className="investment-allocation-bar" style={{ flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
                           <span>% da Carteira</span>
                           <span style={{ fontWeight: 700, color: corTipo }}>{pctCart.toFixed(1)}%</span>
@@ -549,6 +629,7 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
                         </div>
                       </div>
                       {inv.tipo !== 'Renda Fixa' && <GrahamBadge inv={inv} />}
+                      {inv.tipo === 'Renda Fixa' && <span className="dy-badge" style={{ fontSize: 10, color: '#c4b5fd' }}>🏦 {inv.indexador || 'CDI'} · {inv.emissor || 'Emissor não informado'}</span>}
                       {inv.dyPct != null && (
                         <span className="dy-badge" style={{ fontSize: 10 }}>🏷 DY {inv.dyPct.toFixed(2)}%</span>
                       )}
@@ -558,9 +639,9 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
               })}
 
               {/* Linha de totais */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="investment-total-card" style={{ background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>TOTAL DA CARTEIRA</span>
-                <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                <div className="investment-total-values" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Valor Atual</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--mono)' }}>{fmt(totalAtual)}</div>
@@ -578,7 +659,7 @@ function AbaCarteira({ enriched, totalAtual, totalInvestido, resultadoTotal, res
         </div>
 
         {/* Alocação por tipo (sidebar) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="investment-allocation-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="card" style={{ padding: '16px' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Alocação por Tipo</div>
             <ResponsiveContainer width="100%" height={150}>
@@ -922,22 +1003,22 @@ function AbaComparador({ enriched, cdiAnual }) {
       {rf.length > 0 && (
         <div className="card card--flat">
           <div className="tbl-header">
-            <span className="tbl-header__title">🏦 Renda Fixa vs CDI</span>
+            <span className="tbl-header__title">🏦 Renda Fixa: taxa, prazo e rendimento estimado</span>
           </div>
           <div className="tbl-wrap">
             <table className="ranking-tbl">
               <thead>
                 <tr>
                   <th>Ativo</th>
-                  <th>% do CDI</th>
-                  <th>Taxa Efetiva Est.</th>
-                  <th>Resultado Acum.</th>
-                  <th>Valor Atual</th>
+                  <th>Indexador / taxa</th>
+                  <th>Liquidez / vencimento</th>
+                  <th>Rendimento bruto</th>
+                  <th>Líquido estimado</th>
                 </tr>
               </thead>
               <tbody>
                 {rf.map((inv, i) => {
-                  const taxaEfetiva = cdiAnual > 0 ? ((inv.rentabilidade_cdi ?? 100) / 100 * cdiAnual).toFixed(2) : '—';
+                  const rfInfo = inv.rendaFixa || calcularRendaFixa(inv, 0, cdiAnual);
                   return (
                     <tr key={i}>
                       <td>
@@ -945,17 +1026,18 @@ function AbaComparador({ enriched, cdiAnual }) {
                         <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{fmtDate(inv.data_compra)}</div>
                       </td>
                       <td>
-                        <span className="dy-badge">{inv.rentabilidade_cdi}% CDI</span>
+                        <span className="dy-badge">{rfInfo.taxaExibida}</span>
                       </td>
-                      <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#a78bfa', fontWeight: 700 }}>
-                        ~{taxaEfetiva}% a.a.
+                      <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        <strong>{inv.liquidez || 'Não informada'}</strong><br />
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{rfInfo.diasAteVencimento === null ? 'Sem vencimento informado' : rfInfo.diasAteVencimento < 0 ? 'Título vencido' : `${rfInfo.diasAteVencimento} dias até o vencimento`}</span>
                       </td>
                       <td>
                         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: inv.resultado >= 0 ? '#34d399' : '#f87171' }}>
-                          {inv.resultado >= 0 ? '+' : ''}{fmt(inv.resultado)}
+                          +{fmt(rfInfo.rendimentoBruto)}
                         </span>
                       </td>
-                      <td className="val val--primary">{fmt(inv.valorTotal)}</td>
+                      <td className="val val--primary">{fmt(rfInfo.valorLiquido)}</td>
                     </tr>
                   );
                 })}
@@ -969,7 +1051,7 @@ function AbaComparador({ enriched, cdiAnual }) {
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
-export default function Investimentos({ data, onAdd, onEdit, refetch }) {
+export default function Investimentos({ data, gastosFixos = [], gastosVariaveis = [], onAdd, onEdit, refetch }) {
   const [tab,          setTab]          = useState(0);
   const [ativoSel,     setAtivoSel]     = useState(null);
   const [toggling,     setToggling]     = useState(null);
@@ -1006,24 +1088,17 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
     const cot    = cotacoes[ticker];
 
     if (inv.tipo === 'Renda Fixa') {
-      const rentPct         = inv.rentabilidade_cdi ?? 100;
-      const taxaDia         = (cdiDiario * rentPct) / 100;
-      const diasDesdeCompra = inv.data_compra
-        ? Math.max(0, Math.floor((Date.now() - new Date(inv.data_compra).getTime()) / 86400000))
-        : 0;
-      const fatorAcum    = Math.pow(1 + taxaDia / 100, diasDesdeCompra);
-      const valorAtual   = inv.preco_medio * inv.quantidade * fatorAcum;
-      const resultado    = valorAtual - (inv.preco_medio * inv.quantidade);
-      const rentAnual    = ((rentPct / 100) * cdiAnual).toFixed(2);
+      const rendaFixa = calcularRendaFixa(inv, cdiDiario, cdiAnual);
 
       return {
         ...inv,
         precoAtual:        inv.preco_medio,
-        varDia:            (cdiDiario * rentPct) / 100,
-        valorTotal:        valorAtual,
-        resultado,
-        resultadoPct:      diasDesdeCompra > 0 ? (fatorAcum - 1) * 100 : 0,
-        rentabilidadeInfo: `${rentPct}% CDI · ~${rentAnual}% a.a.`,
+        varDia:            rendaFixa.indexador === 'CDI' ? (cdiDiario * rendaFixa.percentualCdi) / 100 : null,
+        valorTotal:        rendaFixa.valorBruto,
+        resultado:         rendaFixa.rendimentoBruto,
+        resultadoPct:      rendaFixa.principal > 0 ? (rendaFixa.rendimentoBruto / rendaFixa.principal) * 100 : 0,
+        rentabilidadeInfo: rendaFixa.taxaExibida,
+        rendaFixa,
         temCotacao:        false,
       };
     }
@@ -1049,6 +1124,11 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
   const totalAtual        = enriched.reduce((s, i) => s + i.valorTotal, 0);
   const resultadoTotal    = totalAtual - totalInvestido;
   const resultadoPctTotal = totalInvestido > 0 ? (resultadoTotal / totalInvestido) * 100 : 0;
+  const aportesCofre = [...gastosFixos, ...gastosVariaveis].filter((gasto) => String(gasto.categoria || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() === 'investimento');
+  const cofrePlanejado = aportesCofre.reduce((total, gasto) => total + Number(gasto.valor || 0), 0);
+  const cofreGuardado = aportesCofre.filter((gasto) => gasto.situacao === 'Pago').reduce((total, gasto) => total + Number(gasto.valor || 0), 0);
+  const usadoDoCofre = enriched.filter((investimento) => investimento.usar_cofre || investimento.usarCofre).reduce((total, investimento) => total + investimento.quantidade * investimento.preco_medio, 0);
+  const cofreDisponivel = Math.max(0, cofreGuardado - usadoDoCofre);
 
   const tipoData = Object.entries(
     enriched.reduce((acc, i) => { acc[i.tipo] = (acc[i.tipo] || 0) + i.valorTotal; return acc; }, {})
@@ -1062,7 +1142,7 @@ export default function Investimentos({ data, onAdd, onEdit, refetch }) {
     { icon: '🔄', label: 'Comparador' },
   ];
 
-  const sharedProps = { enriched, totalAtual, totalInvestido, resultadoTotal, resultadoPctTotal, cdiAnual, cdiDiario };
+  const sharedProps = { enriched, totalAtual, totalInvestido, resultadoTotal, resultadoPctTotal, cdiAnual, cdiDiario, cofreGuardado, cofrePlanejado, usadoDoCofre, cofreDisponivel };
 
   return (
     <div className="flex flex-col gap-16">

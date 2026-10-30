@@ -30,10 +30,12 @@ export function createRelatoriosService(prisma) {
     async gerarProjecao(mes, quantidade = 11) {
       const [receitas, fixos, variaveis] = await porMes(mes);
       let saldo = somar(receitas) - somar(fixos) - somar(variaveis);
+      const receitaRecorrente = somar(receitas.filter((item) => item.recorrente || item.mensal));
       const recorrentes = somar(variaveis.filter((item) => item.recorrente));
       return proximosMeses(mes, quantidade).map((periodo, indice) => {
-        if (indice) saldo += somar(receitas) - somar(fixos) - recorrentes;
-        return { mes: periodo, saldo, tipo: indice ? 'projetado' : 'real' };
+        const fluxoRecorrente = receitaRecorrente - somar(fixos) - recorrentes;
+        if (indice) saldo += fluxoRecorrente;
+        return { mes: periodo, saldo, receita_recorrente: receitaRecorrente, gastos_fixos: somar(fixos), gastos_variaveis_recorrentes: recorrentes, fluxo_recorrente: fluxoRecorrente, tipo: indice ? 'projetado' : 'real' };
       });
     },
     async agruparPorCategoria(mes) {

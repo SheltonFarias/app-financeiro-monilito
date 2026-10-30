@@ -6,7 +6,7 @@ import { getRelatorios } from '../src/modules/relatorios/controller.js';
 import { login } from '../src/modules/auth/service.js';
 
 test('relatórios agrupam categorias e projetam saldo', async () => {
-  const prisma = { receita: { findMany: async () => [{ mes: 'Junho2026', valor: 100 }] }, gastoFixo: { findMany: async () => [{ mes: 'Junho2026', categoria: 'Moradia', valor: 30 }] }, gastoVariavel: { findMany: async () => [{ mes: 'Junho2026', categoria: 'Lazer', valor: 10, recorrente: true }] } };
+  const prisma = { receita: { findMany: async () => [{ mes: 'Junho2026', valor: 100, recorrente: true }] }, gastoFixo: { findMany: async () => [{ mes: 'Junho2026', categoria: 'Moradia', valor: 30 }] }, gastoVariavel: { findMany: async () => [{ mes: 'Junho2026', categoria: 'Lazer', valor: 10, recorrente: true }] } };
   const service = createRelatoriosService(prisma);
   assert.deepEqual(await service.agruparPorCategoria('Junho2026'), [{ name: 'Moradia', value: 30 }, { name: 'Lazer', value: 10 }]);
   assert.deepEqual((await service.gerarProjecao('Junho2026', 1)).map((item) => item.saldo), [60, 120]);

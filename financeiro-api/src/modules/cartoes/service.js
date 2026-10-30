@@ -3,6 +3,9 @@ export function createCartoesService(prisma) {
     if (!dados?.nome || String(dados.nome).length > 100) throw Object.assign(new Error('Dados inválidos: Nome é obrigatório'), { statusCode: 400 });
     for (const chave of ['limite_total', 'dia_fechamento', 'dia_vencimento']) if (!Number.isFinite(dados[chave])) throw Object.assign(new Error('Dados inválidos: campo numérico inválido'), { statusCode: 400 });
     if (dados.limite_total < 0 || !Number.isInteger(dados.dia_fechamento) || !Number.isInteger(dados.dia_vencimento) || dados.dia_fechamento < 1 || dados.dia_fechamento > 31 || dados.dia_vencimento < 1 || dados.dia_vencimento > 31) throw Object.assign(new Error('Dados inválidos: campo fora do intervalo'), { statusCode: 400 });
+    if (dados.limite_planejado !== undefined && dados.limite_planejado !== null) {
+      if (!Number.isFinite(dados.limite_planejado) || dados.limite_planejado < 0 || dados.limite_planejado > dados.limite_total) throw Object.assign(new Error('Dados inválidos: o limite planejado deve estar entre zero e o limite total'), { statusCode: 400 });
+    }
     return dados;
   };
   return {

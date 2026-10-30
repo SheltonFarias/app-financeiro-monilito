@@ -7,6 +7,7 @@ export default function AutocompleteTicker({ value, onChange, onSelectDetails, p
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef(null);
+  const ultimoTickerConsultado = useRef('');
 
   // Sync external value
   useEffect(() => {
@@ -47,24 +48,46 @@ export default function AutocompleteTicker({ value, onChange, onSelectDetails, p
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = async (item) => {
+  const buscarDetalhes = async (ticker, detalhesIniciais = {}) => {
+    const tickerNormalizado = String(ticker ?? '').trim().toUpperCase();
+    if (!/^[A-Z]{4,6}[0-9]{0,2}$/.test(tickerNormalizado)) return;
+    if (ultimoTickerConsultado.current === tickerNormalizado) return;
+
+    ultimoTickerConsultado.current = tickerNormalizado;
+    onSelectDetails({ ...detalhesIniciais, loadingDividends: true });
+    try {
+      const details = await apiFetch(`/api/investimentos/busca?ticker=${encodeURIComponent(tickerNormalizado)}`);
+      onSelectDetails({
+        ...detalhesIniciais,
+        dividendoAnual: details?.dividendoAnual ?? 0,
+        loadingDividends: false,
+      });
+    } catch (err) {
+      console.error('Erro ao buscar dividendos:', err);
+      onSelectDetails({ ...detalhesIniciais, loadingDividends: false });
+    }
+  };
+
+  const handleSelect = (item) => {
     const { ticker, preco, setor } = item;
     setQuery(ticker);
     onChange(ticker);
     setShowDropdown(false);
-
-    // Immediate auto-fill with price and sector
-    onSelectDetails({ preco, setor, loadingDividends: true });
-
-    // Fetch dividends in background
-    try {
-      const details = await apiFetch(`/api/investimentos/busca?ticker=${encodeURIComponent(ticker)}`);
-      onSelectDetails({ preco, setor, dividendoAnual: details?.dividendoAnual || 0, loadingDividends: false });
-    } catch (err) {
-      console.error('Erro ao buscar dividendos:', err);
-      onSelectDetails({ preco, setor, dividendoAnual: 0, loadingDividends: false });
-    }
+    buscarDetalhes(ticker, { preco, setor });
   };
+
+  const handleBlur = () => {
+    // Permite digitar o ticker diretamente, sem depender de clicar na sugestão.
+    buscarDetalhes(query);
+  };
+
+  useEffect(() => {
+    const tickerNormalizado = String(query ?? '').trim().toUpperCase();
+    if (!/^[A-Z]{4,6}[0-9]{0,2}$/.test(tickerNormalizado)) return undefined;
+
+    const handler = setTimeout(() => buscarDetalhes(tickerNormalizado), 550);
+    return () => clearTimeout(handler);
+  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const renderDropdownContent = () => {
     if (query.length < 2) {
@@ -121,11 +144,13 @@ export default function AutocompleteTicker({ value, onChange, onSelectDetails, p
           value={query}
           placeholder={placeholder}
           onChange={(e) => {
+            ultimoTickerConsultado.current = '';
             setQuery(e.target.value);
             onChange(e.target.value);
             setShowDropdown(true);
           }}
           onFocus={() => setShowDropdown(true)}
+          onBlur={handleBlur}
         />
         {loading && (
           <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--teal)' }}>

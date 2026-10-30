@@ -32,10 +32,11 @@ export function getToken() { return SecureStore.getItemAsync(TOKEN_KEY); }
 export function logout() { return SecureStore.deleteItemAsync(TOKEN_KEY); }
 
 export type DashboardData = {
-  gastosFixos: Array<{ id: number; descricao: string; valor: number; situacao: string }>;
-  gastosVariaveis: Array<{ id: number; descricao: string; valor: number; situacao: string }>;
+  gastosFixos: Array<{ id: number; descricao: string; valor: number; situacao: string; cartao?: string | null }>;
+  gastosVariaveis: Array<{ id: number; descricao: string; valor: number; situacao: string; pagamento?: string | null }>;
   receitas: Array<{ id: number; descricao: string; valor: number; situacao: string }>;
   metas: Array<{ id: number; titulo: string; valor_alvo: number; valor_atual: number }>;
+  cartoes: Array<{ id: string; nome: string; limite_total: number; limite_planejado?: number | null }>;
 };
 
 export function getDashboard(mes: string) { return request<DashboardData>(`/api/dashboard?mes=${encodeURIComponent(mes)}`); }

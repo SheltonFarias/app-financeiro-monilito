@@ -9,11 +9,16 @@ import { useToast } from "./Toast";
 import { useConfig } from "../hooks/useConfig";
 import AutocompleteTicker from "./AutocompleteTicker";
 
-function getFieldDefs(config) {
+function getFieldDefs(config, cartoes = []) {
   const cReceitas = config?.categorias_receitas || ["Trabalho","Apartamento","Outros","Mãe"];
-  const cGastosFixos = config?.categorias_gastos_fixos || ["Educação","Veiculo","Casa","Apartamento","Lazer","Outros","Saúde","Mãe"];
-  const cGastosVar = config?.categorias_gastos_variaveis || ["Casa","Alimentação","Transporte","Lazer","Saúde","Vestuário","Outros","Mãe"];
-  const pagamentos = config?.formas_pagamento || ["Cartão Inter","Cartão Nubank","Débito","Pix"];
+  const incluirInvestimento = (categorias) => [...new Set([...(categorias || []), "Investimento"])];
+  const cGastosFixos = incluirInvestimento(config?.categorias_gastos_fixos || ["Educação","Veiculo","Casa","Apartamento","Lazer","Outros","Saúde","Mãe"]);
+  const cGastosVar = incluirInvestimento(config?.categorias_gastos_variaveis || ["Casa","Alimentação","Transporte","Lazer","Saúde","Vestuário","Outros","Mãe"]);
+  const formasConfiguradas = config?.formas_pagamento || ["Cartão Inter","Cartão Nubank","Débito","Pix"];
+  const formasNaoCartao = formasConfiguradas.filter((forma) => !/cart[aã]o|cr[eé]dito/i.test(String(forma)));
+  const nomesCartoes = [...new Set(cartoes.map((cartao) => String(cartao.nome || '').trim()).filter(Boolean))];
+  // Os cartões vêm exclusivamente do cadastro de cartões; Pix/Débito permanecem como alternativas.
+  const pagamentos = [...nomesCartoes, ...formasNaoCartao];
 
   return {
     "Gasto Fixo": [
@@ -43,9 +48,15 @@ function getFieldDefs(config) {
       { key: "ticker",          label: "Ticker / Nome",          type: "autocomplete_ticker",   placeholder: "Ex: MXRF11, PETR4..." },
       { key: "quantidade",      label: "Quantidade",              type: "number", placeholder: "0" },
       { key: "precoMedio",      label: "Preço Médio (R$)",        type: "number", placeholder: "0.00" },
-      { key: "setor",           label: "Setor",                   type: "text",   placeholder: "Ex: Papel, Logística..." },
+      { key: "setor",           label: "Setor",                   type: "text",   placeholder: "Ex: Papel, Logística...", condicionalNot: "Renda Fixa" },
       { key: "dataCompra",      label: "Data da Compra",          type: "date" },
-      { key: "rentabilidadeCdi", label: "Rentabilidade (% do CDI)", type: "number", placeholder: "Ex: 110 (para 110% do CDI)", condicional: "Renda Fixa" },
+      { key: "usarCofre",       label: "Origem do aporte",        type: "select", options: ["Recursos externos", "Usar Cofre/Poupança"] },
+      { key: "indexador",       label: "Indexador",               type: "select", options: ["CDI", "Prefixado", "IPCA+"], condicional: "Renda Fixa" },
+      { key: "rentabilidadeCdi", label: "Rentabilidade (% do CDI)", type: "number", placeholder: "Ex: 110 (para 110% do CDI)", condicionalValue: "Renda Fixa|CDI" },
+      { key: "taxaAnual",       label: "Taxa contratada (% a.a.)", type: "number", placeholder: "Ex: 12,50", condicional: "Renda Fixa", condicionalNotValue: "Renda Fixa|CDI", dica: "Para IPCA+, informe apenas a taxa fixa adicional; o IPCA não é projetado automaticamente." },
+      { key: "emissor",         label: "Emissor",                  type: "text", placeholder: "Ex: Tesouro Nacional, Banco XPTO", condicional: "Renda Fixa" },
+      { key: "liquidez",        label: "Liquidez",                 type: "select", options: ["Diária", "No vencimento", "D+1", "D+30"], condicional: "Renda Fixa" },
+      { key: "dataVencimento",  label: "Data de vencimento",       type: "date", condicional: "Renda Fixa" },
       { key: "dividendoAnual",  label: "Dividendo Anual (R$/cota)", type: "number", placeholder: "Ex: 12.00", condicionalNot: "Renda Fixa", dica: "💡 Dividendo anual estimado por cota/ação. Usado para calcular o DY% na análise." },
     ],
     "Orçamento": [
@@ -62,6 +73,7 @@ function getFieldDefs(config) {
     "Cartão de Crédito": [
       { key: "nome",           label: "Nome do Cartão", type: "text",   placeholder: "Ex: Nubank Ultravioleta" },
       { key: "limite_total",   label: "Limite Total",   type: "number", placeholder: "0.00" },
+      { key: "limite_planejado", label: "Teto planejado para uso (R$)", type: "number", placeholder: "Opcional — usa o limite total se vazio", dica: "Sua faixa segura de uso. Não pode ser maior que o limite do cartão." },
       { key: "dia_fechamento", label: "Dia Fechamento", type: "number", placeholder: "Ex: 25" },
       { key: "dia_vencimento", label: "Dia Vencimento", type: "number", placeholder: "Ex: 5" },
     ],
@@ -86,7 +98,7 @@ function detectarTipoRecorrencia(data) {
   return "avulso";
 }
 
-export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) {
+export default function Modal({ tipo, initialData, mesAtual, cartoes = [], onClose, onSave }) {
   // Para data_fim exibida no formato DD/MM/AAAA, converte ISO → BR ao abrir
   const toDisplayDate = (iso) => {
     if (!iso) return "";
@@ -99,6 +111,7 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     if (!data) return {};
     const copy = { ...data };
     if (copy.data_fim) copy.data_fim = toDisplayDate(copy.data_fim);
+    if (tipo === "Investimento" && copy.usarCofre !== undefined) copy.usarCofre = copy.usarCofre ? "Usar Cofre/Poupança" : "Recursos externos";
     return copy;
   };
 
@@ -113,10 +126,18 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
   const { toast } = useToast();
   const { config } = useConfig();
 
-  const fieldDefs = useMemo(() => getFieldDefs(config), [config]);
+  const fieldDefs = useMemo(() => getFieldDefs(config, cartoes), [config, cartoes]);
 
   const fields = fieldDefs[tipo] || [];
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k, v) => setForm((f) => {
+    if (tipo === "Investimento" && k === "tipo") {
+      if (v === "Renda Fixa") {
+        return { ...f, tipo: v, setor: "", dividendoAnual: null, indexador: f.indexador || "CDI" };
+      }
+      return { ...f, tipo: v, indexador: "", rentabilidadeCdi: null, taxaAnual: null, emissor: "", liquidez: "", dataVencimento: "" };
+    }
+    return { ...f, [k]: v };
+  });
 
   const handleSave = async () => {
     setSaving(true);
@@ -130,16 +151,33 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     if (processed.qtd_parcelas)    processed.qtd_parcelas    = parseInt(processed.qtd_parcelas)       || 1;
     if (processed.rentabilidadeCdi !== undefined && processed.rentabilidadeCdi !== null && processed.rentabilidadeCdi !== '')
       processed.rentabilidadeCdi = parseFloat(processed.rentabilidadeCdi) || null;
+    if (processed.taxaAnual !== undefined && processed.taxaAnual !== null && processed.taxaAnual !== '')
+      processed.taxaAnual = parseFloat(processed.taxaAnual) || null;
     if (processed.dividendoAnual !== undefined && processed.dividendoAnual !== null && processed.dividendoAnual !== '')
       processed.dividendoAnual = parseFloat(processed.dividendoAnual) || null;
     else if (processed.dividendoAnual === '')
       processed.dividendoAnual = null;
+    if (tipo === "Investimento") {
+      processed.usarCofre = processed.usarCofre === "Usar Cofre/Poupança" || processed.usarCofre === true;
+      if (processed.tipo === "Renda Fixa" && !processed.quantidade) processed.quantidade = 1;
+      if (processed.tipo === "Renda Fixa") {
+        processed.setor = null;
+        processed.dividendoAnual = null;
+      } else {
+        processed.indexador = null;
+        processed.rentabilidadeCdi = null;
+        processed.taxaAnual = null;
+        processed.emissor = null;
+        processed.liquidez = null;
+        processed.dataVencimento = null;
+      }
+    }
 
     // Meta / Cartao Numeric Fields
     if (processed.valor_alvo  !== undefined) processed.valor_alvo  = parseFloat(processed.valor_alvo)  || 0;
-    if (processed.valor_atual !== undefined) processed.valor_atual = parseFloat(processed.valor_atual) || 0;
-    else processed.valor_atual = 0; // garante que sempre vai com valor
-    if (processed.limite_total)   processed.limite_total   = parseFloat(processed.limite_total)   || 0;
+    if (tipo === "Meta") processed.valor_atual = parseFloat(processed.valor_atual) || 0;
+    if (processed.limite_total !== undefined) processed.limite_total = parseFloat(processed.limite_total) || 0;
+    if (processed.limite_planejado !== undefined) processed.limite_planejado = processed.limite_planejado === "" ? null : parseFloat(processed.limite_planejado) || 0;
     if (processed.dia_fechamento) processed.dia_fechamento = parseInt(processed.dia_fechamento)   || 1;
     if (processed.dia_vencimento) processed.dia_vencimento = parseInt(processed.dia_vencimento)  || 1;
 
@@ -184,8 +222,9 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
     const CAMPOS_SISTEMA = new Set([
       "mes", "mensal", "recorrente", "data_inicio", "data_fim",
       "valor_alvo", "valor_atual", "qtd_parcelas",
-      "rentabilidadeCdi", "dividendoAnual", "dataCompra",
-      "limite_total", "dia_fechamento", "dia_vencimento",
+      "rentabilidadeCdi", "taxaAnual", "indexador", "emissor", "liquidez", "dataVencimento", "dividendoAnual", "dataCompra",
+      "usarCofre",
+      "limite_total", "limite_planejado", "dia_fechamento", "dia_vencimento",
     ]);
     const camposFormulario = new Set(fields.map(f => f.key));
     const payload = {};
@@ -219,15 +258,21 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
         {fields.map(field => {
           // condicional: só mostra quando form.tipo === valor (ex: Renda Fixa)
           const isCondicional    = !!field.condicional;
-          const condVisible      = !isCondicional || form.tipo === field.condicional;
+          const [tipoCondicional, valorCondicional] = (field.condicionalValue || '').split('|');
+          const condVisible      = field.condicionalValue
+            ? form.tipo === tipoCondicional && form.indexador === valorCondicional
+            : (!isCondicional || form.tipo === field.condicional);
 
           // condicionalNot: só mostra quando form.tipo ≠ valor (ex: não Renda Fixa)
           const isCondicionalNot = !!field.condicionalNot;
-          const condNotVisible   = !isCondicionalNot || form.tipo !== field.condicionalNot;
+          const [notTipo, notValor] = (field.condicionalNotValue || '').split('|');
+          const condNotVisible   = field.condicionalNotValue
+            ? !(form.tipo === notTipo && form.indexador === notValor)
+            : (!isCondicionalNot || form.tipo !== field.condicionalNot);
 
           // Campo só aparece se ambas as condições forem verdadeiras
           const visible = condVisible && condNotVisible;
-          const hasAnimation = isCondicional || isCondicionalNot;
+          const hasAnimation = isCondicional || isCondicionalNot || !!field.condicionalValue || !!field.condicionalNotValue;
 
           return (
             <div
@@ -245,7 +290,7 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
             >
               {visible && (
                 <>
-                  <label className="modal__label">{field.label}</label>
+                  <label className="modal__label">{field.key === 'ticker' && form.tipo === 'Renda Fixa' ? 'Nome do título' : field.key === 'precoMedio' && form.tipo === 'Renda Fixa' ? 'Valor aplicado (R$)' : field.key === 'quantidade' && form.tipo === 'Renda Fixa' ? 'Quantidade de aplicações' : field.label}</label>
                   {/* Dica genérica do campo */}
                   {field.dica && (
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
@@ -253,7 +298,7 @@ export default function Modal({ tipo, initialData, mesAtual, onClose, onSave }) 
                     </div>
                   )}
                   {/* Dica específica do CDI */}
-                  {isCondicional && !field.dica && (
+                  {field.key === 'rentabilidadeCdi' && !field.dica && (
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
                       💡 Taxa contratada em % do CDI — ex: <strong>110</strong> para 110% do CDI
                     </div>

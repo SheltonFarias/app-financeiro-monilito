@@ -245,7 +245,7 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
 
           {/* Tabela */}
           <div className="tbl-wrap">
-            <table className="tbl">
+            <table className="tbl finance-list-table fixed-expenses-table">
               <thead>
                 <tr>
                   <th className="sortable" onClick={() => handleSort("categoria")}>Categoria <SortArrow k="categoria" sortBy={sortBy} sortDir={sortDir} /></th>

@@ -30,5 +30,7 @@ test('o adaptador web aponta chamadas para a API configurável', () => {
 
   assert.match(apiService, /NEXT_PUBLIC_API_URL/);
   assert.match(apiService, /http:\/\/localhost:3001/);
+  assert.match(apiService, /cartoes:\s+addCartao/);
+  assert.match(apiService, /cartoes:\s+editCartao/);
   assert.doesNotMatch(apiService, /src\/backend|@prisma|jsonwebtoken/);
 });

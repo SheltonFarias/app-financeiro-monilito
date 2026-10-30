@@ -6,3 +6,14 @@ export function calcularTabela(input, amortizacoes = [], indices = new Map()) {
   return tabela;
 }
 export function simularAmortizacao(input, tabela, aporte, amortizacoes = [], indices = new Map()) { const referencia = aporte.parcela_referencia || input.parcela_atual; const atual = tabela.find((linha) => linha.parcela === referencia); if (!atual) return { economia_juros: 0, meses_economizados: 0, nova_prestacao: null }; const sem = tabela.filter((linha) => linha.parcela >= referencia); const com = calcularTabela(input, [...amortizacoes, { parcela_referencia: referencia, valor: aporte.valor, modalidade: aporte.modalidade }], indices).filter((linha) => linha.parcela >= referencia); return { economia_juros: Math.max(0, sem.reduce((total, l) => total + l.juros, 0) - com.reduce((total, l) => total + l.juros, 0)), meses_economizados: Math.max(0, sem.length - com.length), nova_prestacao: aporte.modalidade === 'REDUZ_PRESTACAO' ? com[0]?.prestacao ?? null : null, novo_saldo_devedor: Math.max(0, atual.saldo_devedor - aporte.valor), data_projetada_quitacao: com.at(-1)?.data_vencimento ?? null }; }
+
+export function simularComparativo(input, tabela, aporte, amortizacoes = [], indices = new Map()) {
+  const reduzirPrazo = simularAmortizacao(input, tabela, { ...aporte, modalidade: 'REDUZ_PRAZO' }, amortizacoes, indices);
+  const reduzirPrestacao = simularAmortizacao(input, tabela, { ...aporte, modalidade: 'REDUZ_PRESTACAO' }, amortizacoes, indices);
+  const selecionada = aporte.modalidade === 'REDUZ_PRESTACAO' ? reduzirPrestacao : reduzirPrazo;
+  return {
+    ...selecionada,
+    cenarios: { reduzir_prazo: reduzirPrazo, reduzir_prestacao: reduzirPrestacao },
+    aviso: 'Projeção educacional. Confirme saldo, juros diários, seguros, indexador e boleto com a instituição financeira antes de pagar.',
+  };
+}

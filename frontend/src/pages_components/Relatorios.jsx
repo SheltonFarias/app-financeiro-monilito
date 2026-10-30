@@ -38,6 +38,46 @@ function abreviarMes(m) {
   );
 }
 
+const limitar = (valor, minimo, maximo) => Math.min(maximo, Math.max(minimo, valor));
+const percentual = (parte, total) => total > 0 ? (parte / total) * 100 : 0;
+
+function criarVisaoFinanceira(projecao, historico, categorias, mesAtual) {
+  const atual = historico.find((item) => item.mes === mesAtual) ?? historico.at(-1) ?? {
+    receita: 0, gastos_fixos: 0, gastos_variaveis: 0, gastos_totais: 0, saldo: 0,
+  };
+  const anterior = historico.filter((item) => item.mes !== atual.mes).at(-1);
+  const taxaPoupanca = percentual(atual.saldo, atual.receita);
+  const comprometimentoFixo = percentual(atual.gastos_fixos, atual.receita);
+  const variacaoSaldo = anterior ? atual.saldo - anterior.saldo : null;
+  const maiorCategoria = categorias[0];
+  const primeiroSaldoNegativo = projecao.find((item) => item.saldo < 0);
+  const fluxoRecorrente = projecao[1]?.fluxo_recorrente ?? 0;
+  const receitaRecorrente = projecao[1]?.receita_recorrente ?? 0;
+  const pontoEquilibrio = projecao[1] ? (projecao[1].gastos_fixos + projecao[1].gastos_variaveis_recorrentes) : 0;
+  const lacunaRecorrente = Math.max(0, pontoEquilibrio - receitaRecorrente);
+  const indice = limitar(Math.round(
+    55 + taxaPoupanca * 1.4 - comprometimentoFixo * 0.45 - (atual.gastos_totais > atual.receita ? 20 : 0)
+  ), 0, 100);
+  const classificacao = indice >= 75 ? 'Sólida' : indice >= 50 ? 'Em atenção' : 'Pressionada';
+  const cor = indice >= 75 ? 'var(--teal)' : indice >= 50 ? '#f59e0b' : '#ef4444';
+  const cenarios = projecao.map((item, indiceMes) => ({
+    ...item,
+    conservador: item.saldo - atual.gastos_totais * 0.1 * indiceMes,
+    base: item.saldo,
+    otimista: item.saldo + atual.receita * 0.05 * indiceMes,
+  }));
+
+  const prioridades = [];
+  if (atual.receita <= 0) prioridades.push('Registre receitas para que as projeções representem sua capacidade real de pagamento.');
+  if (comprometimentoFixo > 60) prioridades.push(`Os gastos fixos consomem ${comprometimentoFixo.toFixed(0)}% da receita; reveja contratos e parcelas antes de assumir novas obrigações.`);
+  if (taxaPoupanca < 10 && atual.receita > 0) prioridades.push(`A margem mensal está em ${taxaPoupanca.toFixed(0)}%; priorize criar folga no orçamento antes de aumentar aportes ou crédito.`);
+  if (maiorCategoria && percentual(maiorCategoria.value, atual.gastos_totais) > 30) prioridades.push(`${maiorCategoria.name} concentra ${percentual(maiorCategoria.value, atual.gastos_totais).toFixed(0)}% dos gastos; acompanhe essa categoria semanalmente.`);
+  if (primeiroSaldoNegativo) prioridades.push(`No cenário-base, o saldo projetado fica negativo em ${primeiroSaldoNegativo.mes.replace(/([A-Za-zÀ-ú]+)(\d+)/, '$1 $2')}; antecipe ajustes antes desse período.`);
+  if (!prioridades.length) prioridades.push('O fluxo do período está equilibrado. Mantenha a rotina de registrar gastos e reavalie a projeção a cada mês.');
+
+  return { atual, taxaPoupanca, comprometimentoFixo, variacaoSaldo, maiorCategoria, primeiroSaldoNegativo, fluxoRecorrente, receitaRecorrente, pontoEquilibrio, lacunaRecorrente, indice, classificacao, cor, cenarios, prioridades };
+}
+
 export default function Relatorios({ mesAtual }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,6 +148,7 @@ export default function Relatorios({ mesAtual }) {
   if (!data) return null;
 
   const { projecao = [], categorias = [], historico = [] } = data;
+  const visao = criarVisaoFinanceira(projecao, historico, categorias, mesAtual);
 
   // Pie chart
   let pieData = [];
@@ -138,9 +179,9 @@ export default function Relatorios({ mesAtual }) {
     <div className="flex flex-col gap-16">
 
       {/* ── Cabeçalho ── */}
-      <div className="flex justify-between items-center print-hide" style={{ padding: "0 4px" }}>
+      <div className="flex justify-between items-center print-hide reports-header" style={{ padding: "0 4px" }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: 0 }}>Análise e Projeção</h2>
-        <div className="flex gap-8">
+        <div className="flex gap-8 reports-actions">
           <button
             className="btn btn--ghost btn--sm"
             onClick={() => window.open(apiUrl(`/api/exportar?mes=${mesAtual}&formato=csv`), '_blank')}
@@ -156,6 +197,45 @@ export default function Relatorios({ mesAtual }) {
         </div>
       </div>
 
+      {/* ── Painel de decisão ── */}
+      <div className="card" style={{ borderColor: `${visao.cor}55` }}>
+        <div className="sec-header">
+          <span className="sec-header__title">Visão financeira do período</span>
+          <span className="sec-header__sub">Indicadores de fluxo de caixa e capacidade de ajuste</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+          {[
+            { label: "Saúde do fluxo", value: `${visao.indice}/100`, sub: visao.classificacao, color: visao.cor },
+            { label: "Taxa de poupança", value: `${visao.taxaPoupanca.toFixed(1)}%`, sub: "saldo / receita", color: visao.taxaPoupanca >= 20 ? "var(--teal)" : "#f59e0b" },
+            { label: "Comprometimento fixo", value: `${visao.comprometimentoFixo.toFixed(1)}%`, sub: "fixos / receita", color: visao.comprometimentoFixo <= 50 ? "var(--teal)" : "#ef4444" },
+            { label: "Variação do saldo", value: visao.variacaoSaldo === null ? "—" : `${visao.variacaoSaldo >= 0 ? "+" : ""}${fmt(visao.variacaoSaldo)}`, sub: "contra mês anterior", color: visao.variacaoSaldo === null || visao.variacaoSaldo >= 0 ? "var(--teal)" : "#ef4444" },
+            { label: "Fluxo recorrente", value: `${visao.fluxoRecorrente >= 0 ? "+" : ""}${fmt(visao.fluxoRecorrente)}`, sub: "receitas contratadas − despesas recorrentes", color: visao.fluxoRecorrente >= 0 ? "var(--teal)" : "#ef4444" },
+            { label: "Ponto de equilíbrio", value: fmt(visao.pontoEquilibrio), sub: visao.lacunaRecorrente > 0 ? `faltam ${fmt(visao.lacunaRecorrente)}/mês` : "estrutura coberta", color: visao.lacunaRecorrente > 0 ? "#ef4444" : "var(--teal)" },
+          ].map((indicador) => (
+            <div key={indicador.label} style={{ padding: "14px", borderRadius: "var(--r-md)", background: "var(--canvas-soft)", border: "1px solid var(--hairline)" }}>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 7 }}>{indicador.label}</div>
+              <div style={{ fontSize: 21, fontWeight: 750, fontFamily: "var(--mono)", color: indicador.color }}>{indicador.value}</div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 5 }}>{indicador.sub}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 1fr)", gap: 18, alignItems: "start" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>Prioridades sugeridas</div>
+            <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 7, color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.45 }}>
+              {visao.prioridades.slice(0, 3).map((prioridade) => <li key={prioridade}>{prioridade}</li>)}
+            </ul>
+          </div>
+          <div style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "rgba(99,102,241,0.10)", border: "1px solid rgba(99,102,241,0.28)", fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            <strong style={{ color: "#a5b4fc" }}>Leitura do cenário</strong><br />
+            {visao.primeiroSaldoNegativo
+              ? `A projeção-base exige atenção até ${visao.primeiroSaldoNegativo.mes.replace(/([A-Za-zÀ-ú]+)(\d+)/, '$1 $2')}.`
+              : "A projeção-base permanece positiva nos próximos 12 meses."}
+            {visao.maiorCategoria && <><br />Maior pressão atual: <strong>{visao.maiorCategoria.name}</strong> ({fmt(visao.maiorCategoria.value)}).</>}
+          </div>
+        </div>
+      </div>
+
       {/* ── Projeção de Saldo — 12 meses ── */}
       <div className="card">
         <div className="sec-header">
@@ -163,7 +243,7 @@ export default function Relatorios({ mesAtual }) {
           <span className="sec-header__sub">Baseado nas recorrências e saldo atual</span>
         </div>
         <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={projecao} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <AreaChart data={visao.cenarios} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%"  stopColor="var(--accent-teal)" stopOpacity={0.4}/>
@@ -180,10 +260,17 @@ export default function Relatorios({ mesAtual }) {
             <YAxis tick={{ fill: "var(--ink-muted)", fontSize: 10 }} axisLine={false} tickLine={false}
                    tickFormatter={v => "R$" + (v / 1000).toFixed(0) + "k"} />
             <RechartsTooltip content={<ChartTooltip />} />
-            <Area type="monotone" dataKey="saldo" name="Saldo Projetado"
+            <Area type="monotone" dataKey="conservador" name="Cenário conservador"
+              stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" fill="none" />
+            <Area type="monotone" dataKey="otimista" name="Cenário otimista"
+              stroke="#818cf8" strokeWidth={1.5} strokeDasharray="5 4" fill="none" />
+            <Area type="monotone" dataKey="base" name="Cenário-base"
               stroke="var(--accent-teal)" strokeWidth={3} fillOpacity={1} fill="url(#colorSaldo)" />
           </AreaChart>
         </ResponsiveContainer>
+        <div style={{ display: "flex", gap: 14, justifyContent: "flex-end", flexWrap: "wrap", fontSize: 10, color: "var(--text-muted)", marginTop: 6 }}>
+          <span>Conservador: despesas +10%/mês</span><span>Base: recorrências registradas</span><span>Otimista: receitas +5%/mês</span>
+        </div>
       </div>
 
       {/* ── Gráficos Secundários ── */}
@@ -194,7 +281,7 @@ export default function Relatorios({ mesAtual }) {
             <span className="sec-header__title">Distribuição de Gastos</span>
           </div>
           {pieData.length > 0 ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 260 }}>
+            <div className="report-pie-layout" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 260 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" stroke="none">
@@ -205,7 +292,7 @@ export default function Relatorios({ mesAtual }) {
                   <RechartsTooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 16 }}>
+              <div className="report-pie-legend" style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 16 }}>
                 {pieData.map((entry, idx) => (
                   <div key={entry.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-secondary)", fontWeight: 500 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[entry.name] || `hsl(${idx * 45 + 10}, 65%, 58%)`, flexShrink: 0 }} />

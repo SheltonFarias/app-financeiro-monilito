@@ -5,7 +5,7 @@ import FinanciamentoDashboard from "./FinanciamentoDashboard";
 import { addAmortizacao, addFinanciamento, addPagamento, deleteAmortizacao, deletePagamento, editAmortizacao, getFinanciamento, getFinanciamentos, getTabelaFinanciamento, simularAmortizacao } from "../utils/apiService";
 
 const hoje = new Date().toISOString().slice(0, 10);
-const inicial = { descricao: "", banco: "", valorImovel: "", valorFinanciado: "", taxaJurosNominalAnual: "", prazoMeses: 360, dataInicio: hoje, prestacaoInicialAj: "", totalMensalInicial: "", sistemaAmort: "PRICE", indiceCorrecao: "TR", recursosProprios: 0, descontoFgts: 0, parcelaAtual: 1, seguroMensal: 0, tarifaAdministracao: 0 };
+const inicial = { descricao: "", banco: "", valorImovel: "", valorFinanciado: "", taxaJurosNominalAnual: "", taxaEfetivaAnual: "", prazoMeses: 360, dataInicio: hoje, prestacaoInicialAj: "", totalMensalInicial: "", sistemaAmort: "PRICE", indiceCorrecao: "TR", recursosProprios: 0, descontoFgts: 0, parcelaAtual: 1, seguroMensal: 0, tarifaAdministracao: 0 };
 const brl = (valor) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor || 0);
 const isoDate = (valor) => new Date(valor).toISOString().slice(0, 10);
 
@@ -39,10 +39,10 @@ export default function Financiamentos() {
   };
   const alterar = (e) => {
     const { name, value } = e.target;
-    const numeros = ["valorImovel", "valorFinanciado", "taxaJurosNominalAnual", "prazoMeses", "prestacaoInicialAj", "totalMensalInicial"];
-    setForm((f) => ({ ...f, [name]: numeros.includes(name) ? Number(value) : value }));
+    const numeros = ["valorImovel", "valorFinanciado", "taxaJurosNominalAnual", "taxaEfetivaAnual", "prazoMeses", "prestacaoInicialAj", "totalMensalInicial", "seguroMensal", "tarifaAdministracao", "recursosProprios", "descontoFgts"];
+    setForm((f) => ({ ...f, [name]: numeros.includes(name) ? (value === "" ? "" : Number(value)) : value }));
   };
-  const criar = async (e) => { e.preventDefault(); try { const novo = await addFinanciamento(form); setForm(inicial); await carregar(); await abrir(novo.id); } catch (err) { setErro(err.message); } };
+  const criar = async (e) => { e.preventDefault(); try { const dados = { ...form, taxaEfetivaAnual: form.taxaEfetivaAnual === "" ? null : form.taxaEfetivaAnual }; const novo = await addFinanciamento(dados); setForm(inicial); await carregar(); await abrir(novo.id); } catch (err) { setErro(err.message); } };
   const simular = async (e) => { e.preventDefault(); try { setSimulacao(await simularAmortizacao(contrato.id, { ...aporte, parcelaReferencia: Number(aporte.parcelaReferencia), valor: Number(aporte.valor) })); } catch (err) { setErro(err.message); } };
   const confirmar = async () => {
     try {
@@ -67,11 +67,17 @@ export default function Financiamentos() {
       <Campo label="Valor do imóvel"><input required type="number" min="0" step="0.01" name="valorImovel" value={form.valorImovel} onChange={alterar} placeholder="0,00" /></Campo>
       <Campo label="Valor financiado"><input required type="number" min="0" step="0.01" name="valorFinanciado" value={form.valorFinanciado} onChange={alterar} placeholder="0,00" /></Campo>
       <Campo label="Juros anual (%)"><input required type="number" min="0" step="0.0001" name="taxaJurosNominalAnual" value={form.taxaJurosNominalAnual} onChange={alterar} placeholder="0,00" /></Campo>
+      <Campo label="CET anual (%)"><input type="number" min="0" step="0.0001" name="taxaEfetivaAnual" value={form.taxaEfetivaAnual} onChange={alterar} placeholder="Informe o CET do banco" /></Campo>
       <Campo label="Prazo (meses)"><input required type="number" min="1" name="prazoMeses" value={form.prazoMeses} onChange={alterar} /></Campo>
       <Campo label="Início do contrato"><input required type="date" name="dataInicio" value={form.dataInicio} onChange={alterar} /></Campo>
       <Campo label="Prestação inicial"><input required type="number" min="0" step="0.01" name="prestacaoInicialAj" value={form.prestacaoInicialAj} onChange={alterar} placeholder="0,00" /></Campo>
       <Campo label="Total mensal inicial"><input required type="number" min="0" step="0.01" name="totalMensalInicial" value={form.totalMensalInicial} onChange={alterar} placeholder="0,00" /></Campo>
       <Campo label="Sistema de amortização"><select name="sistemaAmort" value={form.sistemaAmort} onChange={alterar}><option value="PRICE">PRICE</option><option value="SAC">SAC</option></select></Campo>
+      <Campo label="Índice de correção"><select name="indiceCorrecao" value={form.indiceCorrecao} onChange={alterar}><option value="TR">TR</option><option value="IPCA">IPCA</option><option value="NENHUM">Sem indexador</option></select></Campo>
+      <Campo label="Seguro mensal (MIP/DFI)"><input type="number" min="0" step="0.01" name="seguroMensal" value={form.seguroMensal} onChange={alterar} /></Campo>
+      <Campo label="Tarifa administrativa"><input type="number" min="0" step="0.01" name="tarifaAdministracao" value={form.tarifaAdministracao} onChange={alterar} /></Campo>
+      <Campo label="Recursos próprios"><input type="number" min="0" step="0.01" name="recursosProprios" value={form.recursosProprios} onChange={alterar} /></Campo>
+      <Campo label="FGTS utilizado"><input type="number" min="0" step="0.01" name="descontoFgts" value={form.descontoFgts} onChange={alterar} /></Campo>
       <div className="finance-form__action"><button className="btn btn--teal" type="submit">Cadastrar financiamento</button></div>
     </form></section>
 
@@ -85,7 +91,7 @@ export default function Financiamentos() {
         <Campo label="Modalidade"><select value={aporte.modalidade} onChange={(e) => setAporte({ ...aporte, modalidade: e.target.value })}><option value="REDUZ_PRAZO">Reduzir prazo</option><option value="REDUZ_PRESTACAO">Reduzir prestação</option></select></Campo>
         <Campo label="Observação" wide><input maxLength="500" value={aporte.observacao} onChange={(e) => setAporte({ ...aporte, observacao: e.target.value })} placeholder="Opcional" /></Campo>
         <div className="finance-form__action"><button className="btn btn--teal" type="submit">{amortizacaoEditando ? "Simular alterações" : "Simular aporte"}</button></div>
-      </form>{simulacao && <div className="finance-result"><p><strong>Economia estimada: {brl(simulacao.economia_juros)}</strong><span>{simulacao.meses_economizados} meses economizados</span></p><button className="btn btn--teal" onClick={confirmar}>{amortizacaoEditando ? "Salvar amortização" : "Confirmar amortização"}</button></div>}</section>
+      </form>{simulacao && <div className="finance-result"><p><strong>Economia estimada: {brl(simulacao.economia_juros)}</strong><span>{simulacao.meses_economizados} meses economizados</span></p>{simulacao.cenarios && <div className="finance-info"><strong>Comparativo:</strong><br />Reduzir prazo: {brl(simulacao.cenarios.reduzir_prazo.economia_juros)} em juros e {simulacao.cenarios.reduzir_prazo.meses_economizados} meses.<br />Reduzir prestação: nova parcela estimada de {brl(simulacao.cenarios.reduzir_prestacao.nova_prestacao)}.</div>}<p className="finance-info">{simulacao.aviso}</p><button className="btn btn--teal" onClick={confirmar}>{amortizacaoEditando ? "Salvar amortização" : "Confirmar amortização"}</button></div>}</section>
 
       <section className="card finance-card"><div className="finance-card__header"><h2>Registrar pagamento de parcela</h2><p>Registre pagamentos realizados para acompanhar o contrato.</p></div><form className="finance-form finance-form--compact" onSubmit={registrarPagamento}>
         <Campo label="Parcela"><input required type="number" min="1" max={contrato.prazo_meses} value={pagamento.numeroParcela} onChange={(e) => setPagamento({ ...pagamento, numeroParcela: e.target.value })} /></Campo><Campo label="Vencimento"><input required type="date" value={pagamento.dataVencimento} onChange={(e) => setPagamento({ ...pagamento, dataVencimento: e.target.value })} /></Campo><Campo label="Data de pagamento"><input required type="date" value={pagamento.dataPagamentoReal} onChange={(e) => setPagamento({ ...pagamento, dataPagamentoReal: e.target.value })} /></Campo><Campo label="Valor pago"><input required type="number" min="0.01" step="0.01" value={pagamento.valorPago} onChange={(e) => setPagamento({ ...pagamento, valorPago: e.target.value })} /></Campo><Campo label="Seguro pago"><input type="number" min="0" step="0.01" value={pagamento.seguroPago} onChange={(e) => setPagamento({ ...pagamento, seguroPago: e.target.value })} /></Campo><Campo label="Observação" wide><input maxLength="500" value={pagamento.observacao} onChange={(e) => setPagamento({ ...pagamento, observacao: e.target.value })} placeholder="Opcional" /></Campo><div className="finance-form__action"><button className="btn btn--teal" type="submit">Confirmar pagamento</button></div>

@@ -32,13 +32,20 @@ function parseDatabaseUrl(value) {
   return value;
 }
 
+// O Next.js aceita `\$` em arquivos .env, enquanto o dotenv preserva a barra.
+// Normalizamos somente o escape do cifrão para manter o hash bcrypt idêntico
+// ao utilizado pelo monólito durante a migração.
+function normalizePasswordHash(value) {
+  return (value ?? '').replace(/\\\$/g, '$');
+}
+
 export function loadConfig(env = process.env) {
   return {
     port: parsePositiveInt(env.PORT, DEFAULT_PORT),
     databaseUrl: parseDatabaseUrl(env.DATABASE_URL),
     corsOrigins: parseOrigins(env.CORS_ORIGINS),
     auth: {
-      passwordHash: env.AUTH_PASSWORD_HASH ?? '',
+      passwordHash: normalizePasswordHash(env.AUTH_PASSWORD_HASH),
       jwtSecret: env.JWT_SECRET ?? '',
       jwtExpiresIn: env.JWT_EXPIRES_IN || '8h',
       username: env.AUTH_USER || 'admin',

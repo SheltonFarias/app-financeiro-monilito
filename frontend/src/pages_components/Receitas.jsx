@@ -198,7 +198,7 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
 
           {/* Tabela */}
           <div className="tbl-wrap">
-            <table className="tbl">
+            <table className="tbl finance-list-table income-list-table">
               <thead>
                 <tr>
                   <th className="sortable" onClick={() => handleSort("categoria")}>Categoria <SortArrow k="categoria" /></th>

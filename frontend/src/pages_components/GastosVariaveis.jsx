@@ -220,7 +220,7 @@ export default function GastosVariaveis({ data, onAdd, onEdit, refetch }) {
 
           {/* Tabela */}
           <div className="tbl-wrap">
-            <table className="tbl">
+            <table className="tbl finance-list-table variable-expenses-table">
               <thead>
                 <tr>
                   <th className="sortable" onClick={() => handleSort("categoria")}>Categoria <SortArrow k="categoria" /></th>

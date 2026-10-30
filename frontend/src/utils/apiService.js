@@ -91,6 +91,9 @@ function normalizeInvestimento(inv) {
     ...inv,
     precoMedio: inv.preco_medio ?? inv.precoMedio ?? 0,
     dataCompra: inv.data_compra ?? inv.dataCompra ?? null,
+    dataVencimento: inv.data_vencimento ?? inv.dataVencimento ?? null,
+    taxaAnual: inv.taxa_anual ?? inv.taxaAnual ?? null,
+    usarCofre: inv.usar_cofre ?? inv.usarCofre ?? false,
   };
 }
 
@@ -153,6 +156,7 @@ export async function fetchAllData(mes) {
     receitas:        dados.receitas        || [],
     investimentos:   (dados.investimentos  || []).map(normalizeInvestimento),
     metas:           dados.metas           || [],
+    cartoes:         dados.cartoes         || [],
   };
 }
 
@@ -324,6 +328,19 @@ export async function deleteMeta(id) {
   return apiFetch(`/api/metas/${id}`, { method: "DELETE" });
 }
 
+// ── CRUD: Cartões de crédito ───────────────────────────────────────────────
+export async function addCartao(dados) {
+  return apiFetch("/api/cartoes", { method: "POST", body: JSON.stringify(dados) });
+}
+
+export async function editCartao(id, dados) {
+  return apiFetch(`/api/cartoes/${id}`, { method: "PUT", body: JSON.stringify(dados) });
+}
+
+export async function deleteCartao(id) {
+  return apiFetch(`/api/cartoes/${id}`, { method: "DELETE" });
+}
+
 // ── Financiamentos ────────────────────────────────────────────────────────
 export async function getFinanciamentos() { return apiFetch('/api/financiamentos'); }
 export async function getFinanciamento(id) { return apiFetch(`/api/financiamentos/${id}`); }
@@ -339,6 +356,22 @@ export async function deleteAmortizacao(id, amortizacaoId) { return apiFetch(`/a
 export async function addPagamento(id, dados) { return apiFetch(`/api/financiamentos/${id}/pagamentos`, { method: 'POST', body: JSON.stringify(dados) }); }
 export async function deletePagamento(id, pagamentoId) { return apiFetch(`/api/financiamentos/${id}/pagamentos/${pagamentoId}`, { method: 'DELETE' }); }
 
+// ── Locações ───────────────────────────────────────────────────────────────
+export const getImoveis = () => apiFetch('/api/locacoes/imoveis');
+export const addImovel = (dados) => apiFetch('/api/locacoes/imoveis', { method: 'POST', body: JSON.stringify(dados) });
+export const getInquilinos = () => apiFetch('/api/locacoes/inquilinos');
+export const addInquilino = (dados) => apiFetch('/api/locacoes/inquilinos', { method: 'POST', body: JSON.stringify(dados) });
+export const addContratoLocacao = (dados) => apiFetch('/api/locacoes/contratos', { method: 'POST', body: JSON.stringify(dados) });
+export const getContratoLocacao = (id) => apiFetch(`/api/locacoes/contratos/${id}`);
+export const editContratoLocacao = (id, dados) => apiFetch(`/api/locacoes/contratos/${id}`, { method: 'PUT', body: JSON.stringify(dados) });
+export const deleteContratoLocacao = (id) => apiFetch(`/api/locacoes/contratos/${id}`, { method: 'DELETE' });
+export const gerarCobrancaLocacao = (id, dados) => apiFetch(`/api/locacoes/contratos/${id}/cobrancas`, { method: 'POST', body: JSON.stringify(dados) });
+export const receberCobrancaLocacao = (id, dados) => apiFetch(`/api/locacoes/cobrancas/${id}/receber`, { method: 'POST', body: JSON.stringify(dados) });
+export const addDespesaImovel = (dados) => apiFetch('/api/locacoes/despesas', { method: 'POST', body: JSON.stringify(dados) });
+export const getResumoLocacao = (id, competencia) => apiFetch(`/api/locacoes/contratos/${id}/resumo?competencia=${encodeURIComponent(competencia)}`);
+export const simularReajusteLocacao = (id, dados) => apiFetch(`/api/locacoes/contratos/${id}/reajustes`, { method: 'POST', body: JSON.stringify(dados) });
+export const confirmarReajusteLocacao = (id) => apiFetch(`/api/locacoes/reajustes/${id}/confirmar`, { method: 'POST' });
+
 // ── Mapeamento de aba → funções de CRUD ──────────────────────────────────
 // Mantém compatibilidade com as páginas que chamam addRow/editRow/deleteRow/updateStatus
 
@@ -348,6 +381,7 @@ const ABA_ADD = {
   receitas:         addReceita,
   investimentos:    addInvestimento,
   metas:            addMeta,
+  cartoes:          addCartao,
 };
 
 const ABA_EDIT = {
@@ -356,6 +390,7 @@ const ABA_EDIT = {
   receitas:         editReceita,
   investimentos:    editInvestimento,
   metas:            editMeta,
+  cartoes:          editCartao,
 };
 
 const ABA_UPDATE_STATUS = {
@@ -370,6 +405,7 @@ const ABA_DELETE = {
   receitas:         deleteReceita,
   investimentos:    deleteInvestimento,
   metas:            deleteMeta,
+  cartoes:          deleteCartao,
 };
 
 /**

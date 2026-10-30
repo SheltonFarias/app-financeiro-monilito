@@ -105,7 +105,13 @@ model Investimento {
   setor             String?
   data_compra       String?
   rentabilidade_cdi Float?
+  indexador         String?
+  taxa_anual        Float?
+  emissor           String?
+  liquidez          String?
+  data_vencimento   String?
   dividendo_anual   Float?
+  usar_cofre        Boolean  @default(false)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
@@ -131,6 +137,7 @@ model CartaoCredito {
   id             String   @id @default(uuid())
   nome           String   @unique
   limite_total   Float
+  limite_planejado Float?
   dia_fechamento Int
   dia_vencimento Int
   created_at     DateTime @default(now())
@@ -236,8 +243,127 @@ model Financiamento {
   parcelas_pagas        ParcelaPaga[]
   amortizacoes_extras   AmortizacaoExtra[]
   indices_cache         IndiceBCBCache[]
+  imoveis               Imovel[]
 
   @@map("financiamentos")
+}
+
+model Imovel {
+  id                String   @id @default(uuid())
+  nome              String
+  tipo              String   @default("Residencial")
+  endereco          String?
+  status            String   @default("Disponível")
+  financiamento_id  String?  @unique
+  financiamento     Financiamento? @relation(fields: [financiamento_id], references: [id], onDelete: SetNull)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  contratos         ContratoLocacao[]
+  despesas          DespesaImovel[]
+
+  @@map("imoveis")
+}
+
+model Inquilino {
+  id                String   @id @default(uuid())
+  nome              String
+  documento         String?
+  email             String?
+  telefone          String?
+  observacao        String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  contratos         ContratoLocacao[]
+
+  @@map("inquilinos")
+}
+
+model ContratoLocacao {
+  id                String   @id @default(uuid())
+  imovel_id         String
+  inquilino_id      String
+  inicio            DateTime
+  fim               DateTime?
+  vencimento_dia    Int      @default(10)
+  aluguel_base      Float
+  indice_reajuste   String   @default("IPCA")
+  data_base_reajuste DateTime?
+  multa_percentual  Float    @default(0)
+  juros_mora_mensal Float    @default(0)
+  garantia_tipo     String?
+  garantia_valor    Float?
+  status            String   @default("Ativo")
+  observacao        String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  imovel            Imovel   @relation(fields: [imovel_id], references: [id], onDelete: Cascade)
+  inquilino         Inquilino @relation(fields: [inquilino_id], references: [id], onDelete: Restrict)
+  cobrancas         CobrancaLocacao[]
+  reajustes         ReajusteLocacao[]
+
+  @@index([imovel_id, status])
+  @@map("contratos_locacao")
+}
+
+model CobrancaLocacao {
+  id                String   @id @default(uuid())
+  contrato_id       String
+  competencia       String
+  vencimento        DateTime
+  aluguel           Float    @default(0)
+  condominio        Float    @default(0)
+  iptu              Float    @default(0)
+  seguro            Float    @default(0)
+  outros            Float    @default(0)
+  desconto          Float    @default(0)
+  valor_previsto    Float
+  valor_recebido    Float    @default(0)
+  data_recebimento  DateTime?
+  situacao          String   @default("Prevista")
+  observacao        String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  contrato          ContratoLocacao @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+
+  @@unique([contrato_id, competencia])
+  @@index([vencimento, situacao])
+  @@map("cobrancas_locacao")
+}
+
+model DespesaImovel {
+  id                String   @id @default(uuid())
+  imovel_id         String
+  competencia       String
+  categoria         String
+  descricao         String
+  valor             Float
+  vencimento        DateTime?
+  responsavel       String   @default("Locador")
+  situacao          String   @default("Pendente")
+  data_pagamento    DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  imovel            Imovel   @relation(fields: [imovel_id], references: [id], onDelete: Cascade)
+
+  @@index([imovel_id, competencia])
+  @@map("despesas_imovel")
+}
+
+model ReajusteLocacao {
+  id                String   @id @default(uuid())
+  contrato_id       String
+  competencia       String
+  indice            String
+  percentual        Float
+  aluguel_anterior  Float
+  aluguel_novo      Float
+  status            String   @default("Pendente")
+  criado_em         DateTime @default(now())
+  confirmado_em     DateTime?
+  contrato          ContratoLocacao @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+
+  @@index([contrato_id, competencia])
+  @@map("reajustes_locacao")
 }
 
 model ParcelaPaga {
