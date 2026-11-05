@@ -42,3 +42,36 @@ test('formulário usa cartões cadastrados como formas de pagamento', () => {
   assert.match(modal, /tipo === "Meta"\) processed\.valor_atual/);
   assert.match(modal, /incluirInvestimento/);
 });
+
+test('forma de pagamento de cartao informa seu dia de vencimento', async () => {
+  const { obterDiaVencimentoCartao } = await import('../src/utils/cartoes.js');
+  const cartoes = [
+    { nome: 'Cartao Inter', dia_vencimento: 8 },
+    { nome: 'Nubank', dia_vencimento: 15 },
+  ];
+
+  assert.equal(obterDiaVencimentoCartao(cartoes, 'Cartao Inter'), '8');
+  assert.equal(obterDiaVencimentoCartao(cartoes, 'nubank'), '15');
+  assert.equal(obterDiaVencimentoCartao(cartoes, 'Pix'), '');
+});
+
+test('gastos fixo e variavel bloqueiam vencimento quando a forma de pagamento e um cartao', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const modal = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'Modal.jsx'), 'utf8');
+
+  assert.match(modal, /isVencimentoAutomatico/);
+  assert.match(modal, /disabled=\{isVencimentoAutomatico\}/);
+  assert.match(modal, /const formaPagamento = tipo === "Gasto Fixo"/);
+});
+
+test('gasto fixo exibe a forma de pagamento antes do vencimento', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const modal = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'Modal.jsx'), 'utf8');
+  const inicio = modal.indexOf('"Gasto Fixo": [');
+  const fim = modal.indexOf('"Gasto Variável": [');
+  const camposGastoFixo = modal.slice(inicio, fim);
+
+  assert.ok(camposGastoFixo.indexOf('key: "cartao"') < camposGastoFixo.indexOf('key: "vencimento"'));
+});

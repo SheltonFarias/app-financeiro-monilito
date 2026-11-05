@@ -1,60 +1,161 @@
 # Financeiro Mobile
 
-Aplicativo Expo/React Native que consome a API do `app-financeiro-monolito`.
+Aplicativo Expo/React Native para o sistema Financeiro. Consome exclusivamente
+a API independente em `../financeiro-api`.
 
-## Estado atual
+## O que está disponível
 
-O primeiro incremento está funcional: login, sessão segura no dispositivo, dashboard mensal, atualização manual e logout. As telas de lançamentos e ajustes ainda não possuem o CRUD financeiro completo.
+- login com `POST /api/auth/login` e token protegido por `expo-secure-store`;
+- dashboard mensal com atualização manual;
+- navegação nas abas Início, Lançamentos e Ajustes;
+- logout.
 
-Antes de testar, crie `.env` a partir de `.env.example` e informe uma URL HTTPS pública da API:
+A aba **Lançamentos** ainda não possui CRUD de receitas e gastos. Os demais
+módulos financeiros também não estão disponíveis no aplicativo móvel.
 
-```env
-EXPO_PUBLIC_API_URL=https://api.exemplo.com
+## Roadmap do mobile
+
+Próxima entrega: concluir a aba **Lançamentos** com contratos tipados, listagem,
+criação, edição, remoção e alteração de status para receitas e gastos. Após cada
+mutação, o dashboard e as listas devem ser atualizados.
+
+As etapas seguintes são validações de acessibilidade e fluxos críticos, depois
+metas, cartões, investimentos, relatórios e financiamentos conforme prioridade.
+Antes de publicar, serão necessários ícones, política de privacidade e uma
+distribuição por EAS Build/TestFlight ou loja equivalente.
+
+## Pré-requisitos
+
+- Node.js LTS e npm;
+- para iPhone: o aplicativo **Expo Go**;
+- para Android: Expo Go ou Android Studio com um emulador aberto;
+- uma API Financeiro configurada, com PostgreSQL e credenciais de autenticação.
+
+## 1. Preparar e iniciar a API
+
+Em um terminal, configure a API. Não use credenciais de produção para testes.
+
+```powershell
+cd ..\financeiro-api
+Copy-Item .env.example .env
+# Edite .env e defina DATABASE_URL, AUTH_PASSWORD_HASH e JWT_SECRET.
+npm.cmd ci
+npm.cmd run prisma:generate
+npm.cmd start
 ```
 
-`localhost` não funciona no iPhone: a URL deve ser acessível pelo aparelho. Para um teste local, publique temporariamente o backend por um túnel HTTPS; para uso contínuo, hospede a API em um domínio HTTPS.
+O servidor inicia, por padrão, em `http://localhost:3001`. Confirme que está
+ativo abrindo `http://localhost:3001/health`; a resposta esperada é um JSON com
+`"success": true`.
 
-## Testar agora no iPhone — Expo Go
+> Para um iPhone físico, `localhost` não funciona: ele representa o próprio
+> telefone. Publique a API em uma URL HTTPS de homologação ou exponha-a por um
+> túnel HTTPS confiável antes de continuar. O túnel do Expo só expõe o bundle
+> do aplicativo; ele não expõe a API.
 
-Este é o caminho mais rápido e não exige Mac nem conta Apple Developer.
+## 2. Configurar o aplicativo móvel
 
-1. Instale o **Expo Go** pela App Store no iPhone.
-2. No computador, abra esta pasta e execute:
+Em outro terminal:
+
+```powershell
+cd ..\financeiro-mobile
+Copy-Item .env.example .env
+```
+
+Edite `.env` conforme o destino do teste:
+
+```env
+# iPhone físico ou Expo Go em outra rede: URL HTTPS pública da API
+EXPO_PUBLIC_API_URL=https://api-homologacao.exemplo.com
+```
+
+Para teste web no mesmo computador, `http://localhost:3001` funciona. Para
+Android emulador, use uma URL que o emulador alcance (normalmente
+`http://10.0.2.2:3001` no emulador padrão do Android Studio), caso a política
+de rede da plataforma permita HTTP. Prefira HTTPS em aparelhos reais.
+
+Instale as dependências e valide os tipos:
+
+```powershell
+npm.cmd ci
+npm.cmd run typecheck
+```
+
+O projeto ainda não tem uma suíte automatizada de testes mobile; `typecheck`
+é a verificação automatizada disponível. O roteiro manual abaixo valida os
+fluxos existentes.
+
+## 3. Executar
+
+### iPhone físico (recomendado no Windows)
+
+1. Instale o **Expo Go** pela App Store.
+2. Confirme que `EXPO_PUBLIC_API_URL` usa uma URL HTTPS pública e acessível no
+   iPhone.
+3. Execute:
 
    ```powershell
    npm.cmd start -- --tunnel
    ```
 
-3. Escaneie, com a câmera do iPhone, o QR code mostrado pelo Expo.
-4. O app abrirá no Expo Go. Faça login depois de configurar a URL da API.
+4. Leia o QR code com a câmera do iPhone e abra o link no Expo Go.
 
-O modo `--tunnel` ajuda quando computador e iPhone não estão na mesma rede. Ele não torna a API local acessível por si só.
+### Android
 
-## Instalar como app próprio — TestFlight
-
-O projeto está preparado para build remoto pelo EAS, sem precisar de Mac. Para distribuir pelo TestFlight você precisa de uma conta Expo e de uma assinatura ativa do **Apple Developer Program**.
-
-1. Confirme que `ios.bundleIdentifier` em `app.json` é um identificador que pertence à sua conta Apple. O valor inicial é `com.farias.financeiro`.
-2. Autentique-se na Expo e gere o build de produção:
-
-   ```powershell
-   npx.cmd eas-cli@latest login
-   npx.cmd eas-cli@latest build --platform ios --profile production
-   ```
-
-3. No primeiro build, autorize a criação ou o uso das credenciais Apple quando solicitado.
-4. Envie o build ao App Store Connect:
-
-   ```powershell
-   npx.cmd eas-cli@latest submit --platform ios --latest
-   ```
-
-5. No App Store Connect, adicione seu Apple ID como testador interno e aceite o convite do TestFlight no iPhone. Depois, instale o app pelo TestFlight.
-
-Para uma instalação interna fora do TestFlight, use `--profile preview`; a Apple pedirá que o UDID do iPhone seja registrado. O TestFlight costuma ser o fluxo mais simples para uso pessoal e atualizações.
-
-## Verificações locais
+Com Expo Go no aparelho ou um emulador Android aberto:
 
 ```powershell
-npm.cmd run typecheck
+npm.cmd run android
+```
+
+### Navegador
+
+Útil para validar layout e fluxo básico no mesmo computador:
+
+```powershell
+npm.cmd run web
+```
+
+Se necessário, pressione `w` no terminal do Expo.
+
+### Simulador iOS
+
+Requer macOS e Xcode:
+
+```bash
+npm run ios
+```
+
+## 4. Roteiro de teste manual
+
+1. Abra o app e informe a senha configurada em `financeiro-api/.env`.
+2. Toque em **Entrar** e confirme que a aba **Início** aparece.
+3. Confira o resumo do mês: saldo previsto, receitas, gastos e cartões.
+4. Puxe a tela para baixo e confirme que o dashboard atualiza sem perder a
+   sessão.
+5. Abra **Lançamentos** e confirme a mensagem de funcionalidade em evolução.
+6. Abra **Ajustes**, toque em **Sair da conta** e confirme o retorno à tela de
+   login.
+7. Feche e reabra o app após um login: a sessão deve permanecer enquanto o
+   token for válido; após sair, o login deve ser solicitado novamente.
+
+## Problemas comuns
+
+| Sintoma | Correção |
+| --- | --- |
+| `Defina EXPO_PUBLIC_API_URL` | Crie ou ajuste `.env` e reinicie o Expo. |
+| Erro de rede no iPhone | Use uma URL HTTPS pública; não use `localhost`. |
+| Login falha | Confira a senha, `AUTH_PASSWORD_HASH`, `JWT_SECRET`, banco e a resposta de `/health` da API. |
+| QR code não abre | Reinicie com `npm.cmd start -- --tunnel` e leia o novo código. |
+| PowerShell bloqueia `npm` | Use `npm.cmd`, como nos exemplos. |
+
+## Distribuição via TestFlight
+
+Para instalar o app sem Expo Go, é necessário uma conta Expo e uma assinatura
+Apple Developer. Confirme o `ios.bundleIdentifier` em `app.json`, depois use:
+
+```powershell
+npx.cmd eas-cli@latest login
+npx.cmd eas-cli@latest build --platform ios --profile production
+npx.cmd eas-cli@latest submit --platform ios --latest
 ```

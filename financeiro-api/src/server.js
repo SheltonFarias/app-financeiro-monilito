@@ -97,11 +97,11 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
     }
 
     const requestUrl = new URL(request.url ?? '/', 'http://gateway.local');
-    if (request.method === 'GET' && requestUrl.pathname === '/health') {
+    if (request.method === 'GET' && ['/health', '/api/health'].includes(requestUrl.pathname)) {
       writeJson(response, 200, { success: true, data: { status: 'ok' } });
       return;
     }
-    if (request.method === 'GET' && requestUrl.pathname === '/ready') {
+    if (request.method === 'GET' && ['/ready', '/api/ready'].includes(requestUrl.pathname)) {
       writeJson(response, 200, { success: true, data: { status: 'ready' } });
       return;
     }
@@ -278,32 +278,6 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
     writeJson(response, 404, { success: false, error: 'Rota não encontrada.' });
     return;
 
-    const targetUrl = new URL(`${requestUrl.pathname}${requestUrl.search}`, config.legacyOrigin);
-    const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), config.upstreamTimeoutMs);
-
-    try {
-      const upstream = await fetchImpl(targetUrl, {
-        method: request.method,
-        headers: forwardHeaders(request.headers),
-        body: ['GET', 'HEAD'].includes(request.method ?? '') ? undefined : await readBody(request),
-        signal: abortController.signal,
-      });
-      const headers = {};
-      upstream.headers.forEach((value, name) => {
-        if (!HOP_BY_HOP_HEADERS.has(name.toLowerCase())) headers[name] = value;
-      });
-      response.writeHead(upstream.status, headers);
-      response.end(Buffer.from(await upstream.arrayBuffer()));
-    } catch (error) {
-      const timedOut = error?.name === 'AbortError';
-      writeJson(response, timedOut ? 504 : 502, {
-        success: false,
-        error: timedOut ? 'Tempo limite ao comunicar com o serviço financeiro.' : 'Não foi possível comunicar com o serviço financeiro.',
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
   });
 }
 

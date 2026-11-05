@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [frontend, app-financeiro-monolito, financeiro-api, financeiro-mobile]
+        project: [frontend, financeiro-api, financeiro-mobile]
     defaults:
       run:
         working-directory: ${{ matrix.project }}

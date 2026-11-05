@@ -8,6 +8,7 @@ import { addRow, editRow } from "../utils/apiService";
 import { useToast } from "./Toast";
 import { useConfig } from "../hooks/useConfig";
 import AutocompleteTicker from "./AutocompleteTicker";
+import { obterDiaVencimentoCartao } from "../utils/cartoes";
 
 function getFieldDefs(config, cartoes = []) {
   const cReceitas = config?.categorias_receitas || ["Trabalho","Apartamento","Outros","Mãe"];
@@ -25,8 +26,8 @@ function getFieldDefs(config, cartoes = []) {
       { key: "categoria",  label: "Categoria",         type: "select", options: cGastosFixos },
       { key: "descricao",  label: "Descrição",          type: "text",   placeholder: "Ex: Internet, Financiamento..." },
       { key: "valor",      label: "Valor (R$)",          type: "number", placeholder: "0.00" },
-      { key: "vencimento", label: "Dia do Vencimento",   type: "number", placeholder: "Ex: 10 (dia do mês)" },
       { key: "cartao",     label: "Forma de Pagamento",  type: "select", options: pagamentos },
+      { key: "vencimento", label: "Dia do Vencimento",   type: "number", placeholder: "Ex: 10 (dia do mês)" },
       { key: "situacao",   label: "Situação",            type: "select", options: ["Pendente","Pago"] },
     ],
     "Gasto Variável": [
@@ -34,6 +35,7 @@ function getFieldDefs(config, cartoes = []) {
       { key: "descricao",   label: "Descrição",         type: "text",    placeholder: "Ex: Supermercado, iFood..." },
       { key: "valor",       label: "Valor (R$)",         type: "number",  placeholder: "0.00" },
       { key: "pagamento",   label: "Forma de Pagamento", type: "select",  options: pagamentos },
+      { key: "vencimento",  label: "Dia do Vencimento",  type: "number",  placeholder: "Ex: 10 (dia do mÃªs)" },
       { key: "qtd_parcelas",label: "Parcelas (Qtd)",     type: "number",  placeholder: "1" },
       { key: "situacao",    label: "Situação",           type: "select",  options: ["Pendente","Pago"] },
     ],
@@ -130,6 +132,9 @@ export default function Modal({ tipo, initialData, mesAtual, cartoes = [], onClo
 
   const fields = fieldDefs[tipo] || [];
   const set = (k, v) => setForm((f) => {
+    if ((tipo === "Gasto Fixo" && k === "cartao") || (tipo === "Gasto Variável" && k === "pagamento")) {
+      return { ...f, [k]: v, vencimento: obterDiaVencimentoCartao(cartoes, v) };
+    }
     if (tipo === "Investimento" && k === "tipo") {
       if (v === "Renda Fixa") {
         return { ...f, tipo: v, setor: "", dividendoAnual: null, indexador: f.indexador || "CDI" };
@@ -273,6 +278,8 @@ export default function Modal({ tipo, initialData, mesAtual, cartoes = [], onClo
           // Campo só aparece se ambas as condições forem verdadeiras
           const visible = condVisible && condNotVisible;
           const hasAnimation = isCondicional || isCondicionalNot || !!field.condicionalValue || !!field.condicionalNotValue;
+          const formaPagamento = tipo === "Gasto Fixo" ? form.cartao : form.pagamento;
+          const isVencimentoAutomatico = (tipo === "Gasto Fixo" || tipo === "Gasto Variável") && field.key === "vencimento" && !!obterDiaVencimentoCartao(cartoes, formaPagamento);
 
           return (
             <div
@@ -341,6 +348,7 @@ export default function Modal({ tipo, initialData, mesAtual, cartoes = [], onClo
                       inputMode={field.type === "number" ? "decimal" : undefined}
                       value={form[field.key] || ""}
                       onChange={e => set(field.key, e.target.value)}
+                      disabled={isVencimentoAutomatico}
                       placeholder={field.placeholder || ""}
                     />
                   )}

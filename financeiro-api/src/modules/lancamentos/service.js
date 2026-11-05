@@ -36,7 +36,7 @@ export function createLancamentosService(prisma, tipo) {
     const common = { categoria: dados.categoria, descricao: dados.descricao, valor: dados.valor, situacao: dados.situacao ?? 'Pendente', mes: dados.mes, ...extras };
     if (tipo === 'fixo') return { ...common, vencimento: dados.vencimento ?? null, cartao: dados.cartao ?? null, mensal: bool(dados.mensal), data_inicio: dados.data_inicio ?? null, data_fim: dados.data_fim ?? null };
     if (tipo === 'receita') return { ...common, cartao: dados.cartao ?? null, recorrente: bool(dados.recorrente), mensal: bool(dados.mensal), data_inicio: dados.data_inicio ?? null, data_fim: dados.data_fim ?? null };
-    return { ...common, data_compra: dados.dataCompra ?? dados.data_compra ?? null, pagamento: dados.pagamento, recorrente: bool(dados.recorrente), subcategoria: dados.subcategoria ?? null, tags: dados.tags ?? null };
+    return { ...common, data_compra: dados.dataCompra ?? dados.data_compra ?? null, vencimento: dados.vencimento ?? null, pagamento: dados.pagamento, recorrente: bool(dados.recorrente), subcategoria: dados.subcategoria ?? null, tags: dados.tags ?? null };
   };
   async function propagar(mes) {
     if (!recorrente) return;

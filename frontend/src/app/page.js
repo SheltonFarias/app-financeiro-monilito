@@ -10,7 +10,6 @@ import Metas from "../pages_components/Metas";
 import Relatorios from "../pages_components/Relatorios";
 import Configuracoes from "../pages_components/Configuracoes";
 import Financiamentos from "../pages_components/Financiamentos";
-import SimuladorAportes from "../pages_components/SimuladorAportes";
 import Locacoes from "../pages_components/Locacoes";
 import Modal from "../components/Modal";
 import Login from "../components/Login";
@@ -31,8 +30,7 @@ const NAV = [
   { icon: "💳", label: "Cartões",           key: 7 },
   { icon: "⚙️", label: "Configurações",    key: 8 },
   { icon: "🏠", label: "Financiamentos",   key: 9 },
-  { icon: "🧮", label: "Simulador de Aportes", key: 10 },
-  { icon: "🔑", label: "Aluguéis", key: 11 },
+  { icon: "🔑", label: "Aluguéis", key: 10 },
 ];
 
 /** Gera lista de meses disponíveis.
@@ -142,7 +140,6 @@ function AppInner({ logout }) {
     <Cartoes key="cartoes" data={data.cartoes} gastosFixos={data.gastosFixos} gastosVariaveis={data.gastosVariaveis} onAdd={() => setModal({ tipo: "Cartão de Crédito" })} onEdit={(item) => setModal({ tipo: "Cartão de Crédito", item })} />,
     <Configuracoes key="cfg" />,
     <Financiamentos key="fin" />,
-    <SimuladorAportes key="sim-aportes" />,
     <Locacoes key="locacoes" />,
   ];
 

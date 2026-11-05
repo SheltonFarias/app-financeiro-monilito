@@ -32,6 +32,15 @@ test('gasto variável parcela a compra em meses consecutivos', async () => {
   assert.equal((await service.listarPorMes('Janeiro2027'))[0].descricao, 'Seguro (2/2)');
 });
 
+test('gasto variavel preserva o dia de vencimento informado', async () => {
+  const prisma = prismaFalso();
+  const service = createLancamentosService(prisma, 'variavel');
+
+  const gasto = await service.criar({ categoria: 'Casa', descricao: 'Internet', valor: 100, pagamento: 'Cartao Inter', vencimento: '8', mes: 'Junho2026' });
+
+  assert.equal(gasto.vencimento, '8');
+});
+
 test('receita recorrente cria somente uma cópia pendente no mês consultado', async () => {
   const prisma = prismaFalso();
   const service = createLancamentosService(prisma, 'receita');

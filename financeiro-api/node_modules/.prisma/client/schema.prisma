@@ -37,6 +37,7 @@ model GastoVariavel {
   valor        Float
   parcela      String?
   data_compra  String?
+  vencimento   String?
   pagamento    String
   situacao     String    @default("Pendente")
   mes          String

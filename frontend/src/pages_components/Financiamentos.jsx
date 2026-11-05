@@ -17,6 +17,8 @@ export default function Financiamentos() {
   const [contratos, setContratos] = useState([]);
   const [contrato, setContrato] = useState(null);
   const [tabela, setTabela] = useState([]);
+  const [itensPorPagina, setItensPorPagina] = useState(15);
+  const [paginaTabela, setPaginaTabela] = useState(1);
   const [form, setForm] = useState(inicial);
   const [erro, setErro] = useState("");
   const [aporte, setAporte] = useState({ parcelaReferencia: 1, dataPagamento: hoje, valor: "", modalidade: "REDUZ_PRAZO", observacao: "" });
@@ -31,7 +33,7 @@ export default function Financiamentos() {
     try {
       const [item, linhas] = await Promise.all([getFinanciamento(id), getTabelaFinanciamento(id)]);
       const linhaAtual = linhas.find((linha) => linha.parcela === item.parcela_atual);
-      setContrato(item); setTabela(linhas);
+      setContrato(item); setTabela(linhas); setPaginaTabela(1);
       setAporte((a) => ({ ...a, parcelaReferencia: item.parcela_atual }));
       setPagamento((atual) => ({ ...atual, numeroParcela: item.parcela_atual, dataVencimento: linhaAtual ? isoDate(linhaAtual.data_vencimento) : hoje, valorPago: linhaAtual?.prestacao || "" }));
       setSimulacao(null); setAmortizacaoEditando(null); setErro("");
@@ -55,6 +57,11 @@ export default function Financiamentos() {
   const removerPagamento = async (id) => { if (window.confirm("Remover este pagamento?")) { try { await deletePagamento(contrato.id, id); await abrir(contrato.id); await carregar(); } catch (err) { setErro(err.message); } } };
   const removerAmortizacao = async (id) => { if (window.confirm("Remover esta amortização?")) { try { await deleteAmortizacao(contrato.id, id); await abrir(contrato.id); await carregar(); } catch (err) { setErro(err.message); } } };
   const editarAmortizacao = (item) => { setAporte({ parcelaReferencia: item.parcela_referencia, dataPagamento: isoDate(item.data_pagamento), valor: item.valor, modalidade: item.modalidade, observacao: item.observacao || "" }); setAmortizacaoEditando(item.id); setSimulacao(null); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const totalPaginasTabela = Math.max(1, Math.ceil(tabela.length / itensPorPagina));
+  const paginaTabelaAtual = Math.min(paginaTabela, totalPaginasTabela);
+  const inicioTabela = (paginaTabelaAtual - 1) * itensPorPagina;
+  const parcelasVisiveis = tabela.slice(inicioTabela, inicioTabela + itensPorPagina);
+  const fimTabela = Math.min(inicioTabela + itensPorPagina, tabela.length);
 
   return <div className="page finance-page">
     {contrato && <FinanciamentoDashboard contrato={contrato} tabela={tabela} />}
@@ -97,7 +104,7 @@ export default function Financiamentos() {
         <Campo label="Parcela"><input required type="number" min="1" max={contrato.prazo_meses} value={pagamento.numeroParcela} onChange={(e) => setPagamento({ ...pagamento, numeroParcela: e.target.value })} /></Campo><Campo label="Vencimento"><input required type="date" value={pagamento.dataVencimento} onChange={(e) => setPagamento({ ...pagamento, dataVencimento: e.target.value })} /></Campo><Campo label="Data de pagamento"><input required type="date" value={pagamento.dataPagamentoReal} onChange={(e) => setPagamento({ ...pagamento, dataPagamentoReal: e.target.value })} /></Campo><Campo label="Valor pago"><input required type="number" min="0.01" step="0.01" value={pagamento.valorPago} onChange={(e) => setPagamento({ ...pagamento, valorPago: e.target.value })} /></Campo><Campo label="Seguro pago"><input type="number" min="0" step="0.01" value={pagamento.seguroPago} onChange={(e) => setPagamento({ ...pagamento, seguroPago: e.target.value })} /></Campo><Campo label="Observação" wide><input maxLength="500" value={pagamento.observacao} onChange={(e) => setPagamento({ ...pagamento, observacao: e.target.value })} placeholder="Opcional" /></Campo><div className="finance-form__action"><button className="btn btn--teal" type="submit">Confirmar pagamento</button></div>
       </form></section>
 
-      <section className="card finance-card"><div className="finance-card__header"><h2>Tabela projetada</h2><p>Próximas 24 parcelas do financiamento.</p></div><div className="finance-table-wrap"><table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Prestação</th><th>Juros</th><th>Correção</th><th>Amortização</th><th>Saldo</th></tr></thead><tbody>{tabela.slice(0, 24).map((linha) => <tr key={linha.parcela}><td>{linha.parcela}</td><td>{new Date(linha.data_vencimento).toLocaleDateString("pt-BR")}</td><td>{brl(linha.prestacao)}</td><td>{brl(linha.juros)}</td><td>{brl(linha.correcao_indice)}</td><td>{brl(linha.amortizacao)}</td><td>{brl(linha.saldo_devedor)}</td></tr>)}</tbody></table></div></section>
+      <section className="card finance-card"><div className="finance-card__header"><h2>Tabela projetada</h2><p>Mostrando {tabela.length ? inicioTabela + 1 : 0}–{fimTabela} de {tabela.length} parcelas projetadas.</p></div><div className="finance-pagination"><label>Registros por página<select value={itensPorPagina} onChange={(e) => { setItensPorPagina(Number(e.target.value)); setPaginaTabela(1); }}><option value={15}>15</option><option value={50}>50</option><option value={100}>100</option></select></label><div className="finance-pagination__actions"><button type="button" className="btn btn--ghost" onClick={() => setPaginaTabela((pagina) => Math.max(1, pagina - 1))} disabled={paginaTabelaAtual === 1}>Anterior</button><span>Página {paginaTabelaAtual} de {totalPaginasTabela}</span><button type="button" className="btn btn--ghost" onClick={() => setPaginaTabela((pagina) => Math.min(totalPaginasTabela, pagina + 1))} disabled={paginaTabelaAtual === totalPaginasTabela}>Próxima</button></div></div><div className="finance-table-wrap"><table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Prestação</th><th>Juros</th><th>Correção</th><th>Amortização</th><th>Saldo</th></tr></thead><tbody>{parcelasVisiveis.map((linha) => <tr key={linha.parcela}><td>{linha.parcela}</td><td>{new Date(linha.data_vencimento).toLocaleDateString("pt-BR")}</td><td>{brl(linha.prestacao)}</td><td>{brl(linha.juros)}</td><td>{brl(linha.correcao_indice)}</td><td>{brl(linha.amortizacao)}</td><td>{brl(linha.saldo_devedor)}</td></tr>)}</tbody></table></div></section>
     </>}
 
     {contrato?.amortizacoes_extras?.length > 0 && <section className="card finance-card"><div className="finance-card__header"><h2>Amortizações registradas</h2><p>Selecione uma amortização para alterar seus dados.</p></div><div className="finance-table-wrap"><table><thead><tr><th>Parcela</th><th>Data</th><th>Modalidade</th><th>Valor</th><th>Economia</th><th>Ações</th></tr></thead><tbody>{contrato.amortizacoes_extras.map((item) => <tr key={item.id}><td>{item.parcela_referencia}</td><td>{new Date(item.data_pagamento).toLocaleDateString("pt-BR")}</td><td>{item.modalidade === "REDUZ_PRAZO" ? "Reduzir prazo" : "Reduzir prestação"}</td><td>{brl(item.valor)}</td><td>{brl(item.economia_juros)}</td><td className="finance-actions"><button className="btn btn--ghost" onClick={() => editarAmortizacao(item)}>Editar</button><button className="btn btn--red" onClick={() => removerAmortizacao(item.id)}>Excluir</button></td></tr>)}</tbody></table></div></section>}

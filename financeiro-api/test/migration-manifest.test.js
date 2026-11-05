@@ -16,7 +16,7 @@ test('todo endpoint legado tem estado de migração explícito', () => {
     assert.ok(route.path.startsWith('/api/'), `Caminho inválido em ${route.path}.`);
     assert.ok(route.methods.length > 0, `Método ausente em ${route.path}.`);
   }
-  assert.equal(routeMigrationManifest.some((route) => route.status === 'proxy'), false, 'A API separada não pode manter fallback para o monólito.');
+  assert.equal(routeMigrationManifest.some((route) => route.status === 'proxy'), false, 'A API separada não pode manter fallback para uma aplicação legada.');
 });
 
 test('rota nativa declara seu teste de migração', async () => {

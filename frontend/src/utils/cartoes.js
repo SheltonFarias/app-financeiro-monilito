@@ -21,6 +21,14 @@ export function normalizarNomeCartao(valor) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+export function obterDiaVencimentoCartao(cartoes = [], formaPagamento) {
+  const chave = normalizarNomeCartao(formaPagamento);
+  const cartao = chave && cartoes.find((item) => normalizarNomeCartao(item.nome) === chave);
+  const dia = Number(cartao?.dia_vencimento);
+
+  return Number.isInteger(dia) && dia >= 1 && dia <= 31 ? String(dia) : '';
+}
+
 export function calcularResumoCartoes(cartoes = [], gastosFixos = [], gastosVariaveis = []) {
   const lancamentos = [
     ...gastosFixos.map((gasto) => ({ ...gasto, origem: 'Gasto fixo', vinculo: gasto.cartao })),
