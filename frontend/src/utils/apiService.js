@@ -209,6 +209,10 @@ export async function deleteGastoFixoSerie(id) {
   return apiFetch(`/api/gastos-fixos/${id}/serie`, { method: 'DELETE' });
 }
 
+export async function deleteGastoFixoDaquiEmDiante(id) {
+  return apiFetch(`/api/gastos-fixos/${id}/daqui-em-diante`, { method: 'DELETE' });
+}
+
 
 // ── CRUD: Gastos Variáveis ────────────────────────────────────────────────
 
@@ -246,6 +250,10 @@ export async function deleteGastoVariavelSerie(id) {
   return apiFetch(`/api/gastos-variaveis/${id}/serie`, { method: "DELETE" });
 }
 
+export async function deleteGastoVariavelDaquiEmDiante(id) {
+  return apiFetch(`/api/gastos-variaveis/${id}/daqui-em-diante`, { method: "DELETE" });
+}
+
 // ── CRUD: Receitas ────────────────────────────────────────────────────────
 
 /** POST /api/receitas */
@@ -280,6 +288,10 @@ export async function deleteReceita(id) {
 /** DELETE /api/receitas/:id/serie — remove template e todas as cópias recorrentes */
 export async function deleteReceitaSerie(id) {
   return apiFetch(`/api/receitas/${id}/serie`, { method: "DELETE" });
+}
+
+export async function deleteReceitaDaquiEmDiante(id) {
+  return apiFetch(`/api/receitas/${id}/daqui-em-diante`, { method: "DELETE" });
 }
 
 // ── CRUD: Investimentos ───────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 import { useState, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { fmt, COLORS } from "../utils/format";
-import { updateStatus, deleteRow, deleteReceitaSerie } from "../utils/apiService";
+import { updateStatus, deleteRow, deleteReceitaSerie, deleteReceitaDaquiEmDiante } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 import StatusToggle from "../components/StatusToggle";
 
@@ -130,6 +130,21 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
       refetch?.();
     } catch (err) {
       toast.error("Erro ao excluir série: " + err.message);
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const handleDeleteDaquiEmDiante = async () => {
+    const { item, idx } = deleteModal;
+    setDeleteModal(null);
+    setToggling(idx);
+    try {
+      await deleteReceitaDaquiEmDiante(item.id);
+      toast.success(`Receita de "${item.descricao}" encerrada a partir deste mês.`);
+      refetch?.();
+    } catch (err) {
+      toast.error("Erro ao encerrar recorrência: " + err.message);
     } finally {
       setToggling(null);
     }
@@ -320,6 +335,13 @@ export default function Receitas({ data, onAdd, onEdit, refetch }) {
               <br/>Como deseja excluir?
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                className="btn btn--red"
+                style={{ width: "100%", padding: "10px 0", justifyContent: "center" }}
+                onClick={handleDeleteDaquiEmDiante}
+              >
+                Excluir deste mês em diante
+              </button>
               <button
                 className="btn btn--red"
                 style={{ width: "100%", padding: "10px 0", justifyContent: "center" }}

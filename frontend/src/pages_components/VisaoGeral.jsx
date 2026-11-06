@@ -9,6 +9,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import { fmt, COLORS } from "../utils/format";
+import { calcularResumoCartoes } from "../utils/cartoes";
 
 /* ─── Tooltip customizado ── */
 const ChartTooltip = ({ active, payload, label }) => {
@@ -94,7 +95,8 @@ const urgenciaConta = (conta) => {
 
 export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento, onMarkPaid }) {
   const [filtroPendencias, setFiltroPendencias] = useState('todas');
-  const { gastosFixos, gastosVariaveis, receitas, investimentos, orcamentos = [], resumo, evolucaoMensal } = data;
+  const { gastosFixos, gastosVariaveis, receitas, investimentos, cartoes: cartoesCadastrados = [], orcamentos = [], resumo, evolucaoMensal } = data;
+  const cartoes = calcularResumoCartoes(cartoesCadastrados, gastosFixos, gastosVariaveis);
 
   /* ─── Totais ── */
   const totalFixo    = gastosFixos.reduce((s, g) => s + g.valor, 0);
@@ -214,6 +216,39 @@ export default function VisaoGeral({ data, onAddOrcamento, onEditOrcamento, onMa
             sub={fmt(totalVar)}
           />
         </div>
+      </div>
+
+      <div className="card dashboard-credit-cards">
+        <div className="sec-header">
+          <div>
+            <span className="sec-header__title">Resumo por Cartão</span>
+            <span className="dashboard-credit-cards__help">Fatura e uso planejado dos gastos vinculados</span>
+          </div>
+          <span className="sec-header__sub">{cartoes.length} {cartoes.length === 1 ? 'cartão' : 'cartões'}</span>
+        </div>
+        {cartoes.length === 0 ? (
+          <div className="dashboard-credit-cards__empty">Nenhum cartão cadastrado.</div>
+        ) : (
+          <div className="dashboard-credit-cards__list">
+            {cartoes.map((cartao) => {
+              const alerta = cartao.margemPlanejada < 0 || cartao.utilizacao >= 90
+                ? 'dashboard-credit-card--critical'
+                : cartao.utilizacaoPlanejada >= 80 ? 'dashboard-credit-card--attention' : '';
+              return <article className={`dashboard-credit-card ${alerta}`} key={cartao.id}>
+                <div className="dashboard-credit-card__header">
+                  <div><strong>{cartao.nome}</strong><span>Fecha dia {cartao.dia_fechamento} · vence dia {cartao.dia_vencimento}</span></div>
+                  <span>{cartao.utilizacaoPlanejada.toFixed(0)}% planejado</span>
+                </div>
+                <div className="dashboard-credit-card__metrics">
+                  <div><span>Fatura no ciclo</span><strong>{fmt(cartao.faturaAtual)}</strong></div>
+                  <div><span>Previsão vinculada</span><strong>{fmt(cartao.previsaoGastos)}</strong></div>
+                  <div><span>Margem planejada</span><strong className={cartao.margemPlanejada < 0 ? 'text-red' : ''}>{fmt(cartao.margemPlanejada)}</strong></div>
+                </div>
+                <div className="dashboard-credit-card__track" aria-label={`${cartao.utilizacaoPlanejada.toFixed(0)}% do limite planejado utilizado`}><div style={{ width: `${Math.min(100, cartao.utilizacaoPlanejada)}%` }} /></div>
+              </article>;
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Linha 3: Gráfico largo + Categorias ── */}

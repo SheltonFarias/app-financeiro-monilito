@@ -16,6 +16,15 @@ function proximosMeses(mes, quantidade) {
   const { index, ano } = parseMes(mes);
   return Array.from({ length: quantidade }, (_, offset) => MESES[(index + offset) % 12] + (ano + Math.floor((index + offset) / 12)));
 }
+function compararMeses(a, b) {
+  const primeiro = parseMes(a);
+  const segundo = parseMes(b);
+  return (primeiro.ano * 12 + primeiro.index) - (segundo.ano * 12 + segundo.index);
+}
+function fimDoMesAnterior(mes) {
+  const { index, ano } = parseMes(mes);
+  return new Date(ano, index, 0).toISOString().slice(0, 10);
+}
 function validarBase(dados, tipo) {
   if (!dados || typeof dados !== 'object') throw erro('Dados inválidos.');
   if (!dados.categoria || !dados.descricao || !Number.isFinite(dados.valor) || dados.valor < 0 || !dados.mes) throw erro('Dados obrigatórios inválidos.');
@@ -82,5 +91,37 @@ export function createLancamentosService(prisma, tipo) {
     },
     async remover(id) { const atual = await model.findUnique({ where: { id } }); if (!atual) throw erro(`${nome} não encontrado.`, 404); await prisma.$transaction([model.delete({ where: { id } }), ...(tipo === 'variavel' ? [prisma.meta.updateMany({ where: { gasto_variavel_id: id }, data: { gasto_variavel_id: null, contribuicao_ativa: false } })] : [])]); },
     async removerSerie(id) { const atual = await model.findUnique({ where: { id } }); if (!atual) throw erro(`${nome} não encontrado.`, 404); if (tipo === 'variavel') { const result = await model.deleteMany({ where: atual.grupo_id ? { grupo_id: atual.grupo_id } : { id } }); return { removidos: result.count }; } const templateId = atual.template_id ?? id; await prisma.$transaction([model.deleteMany({ where: { template_id: templateId } }), model.delete({ where: { id: templateId } })]); return { removidos: 1 }; },
+    async removerDaquiEmDiante(id) {
+      const atual = await model.findUnique({ where: { id } });
+      if (!atual) throw erro(`${nome} não encontrado.`, 404);
+
+      if (tipo === 'variavel') {
+        const itens = atual.grupo_id ? await model.findMany({ where: { grupo_id: atual.grupo_id } }) : [atual];
+        const ids = itens.filter((item) => compararMeses(item.mes, atual.mes) >= 0).map((item) => item.id);
+        await prisma.$transaction(async (tx) => {
+          for (const itemId of ids) {
+            await tx.gastoVariavel.delete({ where: { id: itemId } });
+            await tx.meta.updateMany({ where: { gasto_variavel_id: itemId }, data: { gasto_variavel_id: null, contribuicao_ativa: false } });
+          }
+        });
+        return { removidos: ids.length };
+      }
+
+      const templateId = atual.template_id ?? atual.id;
+      const copias = await model.findMany({ where: { template_id: templateId } });
+      const idsDasCopias = copias.filter((item) => compararMeses(item.mes, atual.mes) >= 0).map((item) => item.id);
+      await prisma.$transaction(async (tx) => {
+        if (atual.template_id) {
+          const encerramento = { mensal: false, data_fim: fimDoMesAnterior(atual.mes) };
+          if (tipo === 'receita') encerramento.recorrente = false;
+          await tx[modelKey].update({ where: { id: templateId }, data: encerramento });
+          for (const itemId of idsDasCopias) await tx[modelKey].delete({ where: { id: itemId } });
+          return;
+        }
+        for (const item of copias) await tx[modelKey].delete({ where: { id: item.id } });
+        await tx[modelKey].delete({ where: { id: templateId } });
+      });
+      return { removidos: atual.template_id ? idsDasCopias.length : idsDasCopias.length + 1 };
+    },
   };
 }

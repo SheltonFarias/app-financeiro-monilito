@@ -8,7 +8,7 @@
 import { useState, useMemo } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { fmt, COLORS } from "../utils/format";
-import { updateStatus, deleteRow, deleteGastoFixoSerie } from "../utils/apiService";
+import { updateStatus, deleteRow, deleteGastoFixoSerie, deleteGastoFixoDaquiEmDiante } from "../utils/apiService";
 import { useToast } from "../components/Toast";
 import StatusToggle from "../components/StatusToggle";
 
@@ -177,6 +177,21 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
       refetch?.();
     } catch (err) {
       toast.error("Erro ao excluir série: " + err.message);
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const handleDeleteDaquiEmDiante = async () => {
+    const { item } = deleteModal;
+    setDeleteModal(null);
+    setToggling(item.id);
+    try {
+      await deleteGastoFixoDaquiEmDiante(item.id);
+      toast.success(`Gasto "${item.descricao}" encerrado a partir deste mês.`);
+      refetch?.();
+    } catch (err) {
+      toast.error("Erro ao encerrar recorrência: " + err.message);
     } finally {
       setToggling(null);
     }
@@ -415,6 +430,13 @@ export default function GastosFixos({ data, onAdd, onEdit, refetch }) {
               <br/>Como deseja excluir?
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button
+                className="btn btn--red"
+                style={{ width: "100%", padding: "10px 0", justifyContent: "center" }}
+                onClick={handleDeleteDaquiEmDiante}
+              >
+                Excluir deste mês em diante
+              </button>
               <button
                 className="btn btn--red"
                 style={{ width: "100%", padding: "10px 0", justifyContent: "center" }}

@@ -257,7 +257,7 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
       else if (recurso === 'pagamentos' && recursoId && request.method === 'DELETE') acao = 'removerPagamento';
       if (acao) { const result = await executarFinanciamento(nativeRequest, deps, acao, financiamentoId, recursoId); writeJson(response, result.status, result.body); return; }
     }
-    const lancamento = requestUrl.pathname.match(/^\/api\/(gastos-fixos|gastos-variaveis|receitas)(?:\/([^/]+)(?:\/(status|serie))?)?$/);
+    const lancamento = requestUrl.pathname.match(/^\/api\/(gastos-fixos|gastos-variaveis|receitas)(?:\/([^/]+)(?:\/(status|serie|daqui-em-diante))?)?$/);
     if (lancamento) {
       const controller = lancamento[1] === 'gastos-fixos' ? gastosFixosController : lancamento[1] === 'gastos-variaveis' ? gastosVariaveisController : receitasController;
       if (controller) {
@@ -269,6 +269,7 @@ export function createServer(config = loadConfig(), fetchImpl = fetch, services 
         else if (id && !acao && request.method === 'PUT') result = await controller.atualizar(nativeRequest, id);
         else if (id && acao === 'status' && request.method === 'PATCH') result = await controller.atualizarStatus(nativeRequest, id);
         else if (id && acao === 'serie' && request.method === 'DELETE') result = await controller.removerSerie(nativeRequest, id);
+        else if (id && acao === 'daqui-em-diante' && request.method === 'DELETE') result = await controller.removerDaquiEmDiante(nativeRequest, id);
         else if (id && !acao && request.method === 'DELETE') result = await controller.remover(nativeRequest, id);
         if (result) { writeJson(response, result.status, result.body); return; }
       }

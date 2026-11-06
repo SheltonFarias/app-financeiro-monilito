@@ -33,6 +33,15 @@ const NAV = [
   { icon: "🔑", label: "Aluguéis", key: 10 },
 ];
 
+const LOCACOES_NAV = [
+  { icon: "◌", label: "Visão da carteira", anchor: "alugueis-visao" },
+  { icon: "⌂", label: "Imóveis", anchor: "alugueis-imoveis" },
+  { icon: "◉", label: "Inquilinos", anchor: "alugueis-inquilinos" },
+  { icon: "□", label: "Contratos", anchor: "alugueis-contratos" },
+  { icon: "↳", label: "Cobranças", anchor: "alugueis-cobrancas" },
+  { icon: "↗", label: "Despesas e reajustes", anchor: "alugueis-despesas" },
+];
+
 /** Gera lista de meses disponíveis.
  *  Regra: exibe apenas o ano atual.
  *  Exceção: se o mês atual for Dezembro, também exibe todo o próximo ano.
@@ -66,6 +75,7 @@ function AppInner({ logout }) {
   const [mesAtual,     setMesAtual]     = useState(null);
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
   const [anoAtual,     setAnoAtual]     = useState(null);
+  const [locacaoAnchor, setLocacaoAnchor] = useState(null);
 
   useEffect(() => {
     const ano = new Date().getFullYear();
@@ -90,10 +100,23 @@ function AppInner({ logout }) {
     : "";
 
   const closeSidebar = () => setSidebarOpen(false);
+  const selectLocacaoSection = (anchor) => {
+    setTab(10);
+    setLocacaoAnchor(anchor);
+    if (window.innerWidth <= 900) closeSidebar();
+  };
+
+  useEffect(() => {
+    if (tab !== 10 || !locacaoAnchor) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(locacaoAnchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, locacaoAnchor]);
 
   if (loading) return (
     <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
-      <Sidebar tab={tab} setTab={setTab}
+      <Sidebar tab={tab} setTab={setTab} onSelectLocacaoSection={selectLocacaoSection}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
@@ -111,7 +134,7 @@ function AppInner({ logout }) {
 
   if (error) return (
     <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
-      <Sidebar tab={tab} setTab={setTab}
+      <Sidebar tab={tab} setTab={setTab} onSelectLocacaoSection={selectLocacaoSection}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
@@ -145,7 +168,7 @@ function AppInner({ logout }) {
 
   return (
     <div className={`shell ${sidebarOpen ? "sidebar-is-open" : ""}`}>
-      <Sidebar tab={tab} setTab={(t) => { setTab(t); if (window.innerWidth <= 900) closeSidebar(); }}
+      <Sidebar tab={tab} setTab={(t) => { setTab(t); if (window.innerWidth <= 900) closeSidebar(); }} onSelectLocacaoSection={selectLocacaoSection}
         mesAtual={mesAtual} setMesAtual={setMesAtual}
         mesesDisponiveis={mesesDisponiveis}
         isOpen={sidebarOpen} onClose={closeSidebar} />
@@ -166,7 +189,7 @@ function AppInner({ logout }) {
 }
 
 /* ─── Sidebar Component ── */
-function Sidebar({ tab, setTab, mesAtual, setMesAtual, mesesDisponiveis, isOpen, onClose }) {
+function Sidebar({ tab, setTab, mesAtual, setMesAtual, mesesDisponiveis, isOpen, onClose, onSelectLocacaoSection }) {
   return (
     <aside className={`sidebar${isOpen ? " sidebar--open" : ""}`}>
       {/* Logo */}
@@ -178,9 +201,8 @@ function Sidebar({ tab, setTab, mesAtual, setMesAtual, mesesDisponiveis, isOpen,
       {/* Nav */}
       <div className="sidebar__section-label">Menu</div>
       <nav className="sidebar__nav">
-        {NAV.map(({ icon, label, key }) => (
+        {NAV.map(({ icon, label, key }) => <div key={key} className={key === 10 ? "nav-rentals" : undefined}>
           <button
-            key={key}
             className={`nav-item ${tab === key ? "nav-item--active" : ""}`}
             onClick={() => setTab(key)}
             aria-current={tab === key ? "page" : undefined}
@@ -188,7 +210,12 @@ function Sidebar({ tab, setTab, mesAtual, setMesAtual, mesesDisponiveis, isOpen,
             <span className="nav-item__icon">{icon}</span>
             {label}
           </button>
-        ))}
+          {key === 10 && tab === 10 && <div className="nav-rentals__children" aria-label="Navegação de aluguéis">
+            {LOCACOES_NAV.map((item) => <button key={item.anchor} className="nav-rentals__item" onClick={() => onSelectLocacaoSection(item.anchor)}>
+              <span>{item.icon}</span>{item.label}
+            </button>)}
+          </div>}
+        </div>)}
       </nav>
 
       {/* Month selector in footer */}
