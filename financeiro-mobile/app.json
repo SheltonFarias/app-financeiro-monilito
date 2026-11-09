@@ -10,7 +10,19 @@
       "bundleIdentifier": "com.farias.financeiro",
       "supportsTablet": false
     },
-    "plugins": ["expo-router", "expo-secure-store"],
-    "experiments": { "typedRoutes": true }
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "04743218-d472-4931-a4cd-905079ec04af"
+      }
+    },
+    "owner": "sheltonfariass-team"
   }
 }
